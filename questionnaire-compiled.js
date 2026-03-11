@@ -59,7 +59,11 @@
 
     console.log("[WEBHOOK] Script ready");
 
+    let isSubmitting = false;
     button.addEventListener("click", async () => {
+      if (isSubmitting) return;
+      isSubmitting = true;
+      button.disabled = true;
       const payload = {};
 
       try {
@@ -110,6 +114,8 @@
       } catch (error) {
         console.error("[WEBHOOK] Error:", error);
         alert("Something went wrong. Please try again.");
+        isSubmitting = false;
+        button.disabled = false;
       }
     });
   });
