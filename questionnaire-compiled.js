@@ -93,7 +93,7 @@
 
         // 4. Send to Make
         const response = await fetch(
-          "https://hook.us2.make.com/0k76yae1yt3jmujqap8d7xaaxmph27g6",
+          "https://houseofmore.nico-97c.workers.dev/questionnaire-create-member",
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
