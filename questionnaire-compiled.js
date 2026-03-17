@@ -105,15 +105,22 @@
           }
         );
 
-        if (!response.ok) throw new Error(`Webhook failed: ${response.status}`);
-        console.log("[WEBHOOK] Successfully sent");
+        const text = await response.text();
+        let data = {};
+        try { data = JSON.parse(text); } catch(e) {}
+
+        if (!response.ok || data.success === false) {
+          throw new Error(data.message || data.error || `Error ${response.status}`);
+        }
+
+        console.log("[WEBHOOK] Success:", data);
 
         // 5. Redirect
         window.location.href = "/application-submitted";
 
       } catch (error) {
         console.error("[WEBHOOK] Error:", error);
-        alert("Something went wrong. Please try again.");
+        alert(error.message || "Something went wrong. Please try again.");
         isSubmitting = false;
         button.disabled = false;
       }
