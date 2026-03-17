@@ -700,4 +700,165 @@
     }
   });
 
+  /*=========================================================
+    SECTION 8 — ADMIN ONBOARDING WALKTHROUGH
+    src: admin-onboarding.js
+    (previously in Webflow Page Settings head/body custom code)
+  =========================================================*/
+  (function () {
+    // Inject styles
+    const style = document.createElement("style");
+    style.textContent = `
+      #hom-admin-onboarding { position: fixed; inset: 0; z-index: 9999; pointer-events: none; display: none; }
+      #hom-admin-onboarding.active { pointer-events: all; }
+      .hom-aob-backdrop { position: absolute; inset: 0; background: rgba(70,65,56,0.55); backdrop-filter: blur(2px); }
+      .hom-aob-ring { position: fixed; border-radius: 16px; border: 2px solid #946a49; box-shadow: 0 0 0 4px rgba(148,106,73,0.25); pointer-events: none; transition: all 0.35s cubic-bezier(0.4,0,0.2,1); animation: hom-aob-pulse 2s ease-in-out infinite; display: none; z-index: 10000; }
+      @keyframes hom-aob-pulse { 0%,100% { box-shadow: 0 0 0 4px rgba(148,106,73,0.25); } 50% { box-shadow: 0 0 0 8px rgba(148,106,73,0.1); } }
+      .hom-aob-card { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); width: min(420px, calc(100vw - 48px)); background: #f3efe9; border-radius: 20px; padding: 28px 28px 24px; z-index: 10001; box-shadow: 0 24px 64px rgba(70,65,56,0.18), 0 4px 16px rgba(70,65,56,0.1); animation: hom-aob-slide-up 0.4s cubic-bezier(0.4,0,0.2,1); }
+      @keyframes hom-aob-slide-up { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+      .hom-aob-dots { display: flex; gap: 6px; margin-bottom: 20px; }
+      .hom-aob-dot { width: 6px; height: 6px; border-radius: 50%; background: #d9dfd1; transition: all 0.3s ease; }
+      .hom-aob-dot.active { width: 20px; border-radius: 3px; background: #946a49; }
+      .hom-aob-emoji { font-size: 32px; margin-bottom: 12px; line-height: 1; }
+      .hom-aob-title { font-family: var(--font--primary-family, serif); font-size: 20px; font-weight: 600; color: #464138; margin-bottom: 8px; line-height: 1.3; }
+      .hom-aob-body { font-family: var(--font--secondary-family, sans-serif); font-size: 14px; color: #747f65; line-height: 1.6; margin-bottom: 24px; }
+      .hom-aob-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .hom-aob-btn-skip { background: none; border: none; font-family: var(--font--secondary-family, sans-serif); font-size: 13px; color: #8f9a81; cursor: pointer; padding: 8px 0; text-transform: uppercase; letter-spacing: 0.05em; }
+      .hom-aob-btn-skip:hover { color: #464138; }
+      .hom-aob-btn-next { background: #946a49; border: 1px solid #946a49; color: white; font-family: var(--font--secondary-family, sans-serif); font-size: 13px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 28px; border-radius: 50vh; cursor: pointer; transition: background 0.2s ease; }
+      .hom-aob-btn-next:hover { background: #7a5538; border-color: #7a5538; }
+      @media (max-width: 480px) { .hom-aob-card { bottom: 24px; padding: 24px 20px 20px; } }
+    `;
+    document.head.appendChild(style);
+
+    // Inject HTML
+    const html = `
+      <div id="hom-admin-onboarding">
+        <div class="hom-aob-backdrop"></div>
+        <div class="hom-aob-ring" id="hom-aob-ring"></div>
+        <div class="hom-aob-card" id="hom-aob-card">
+          <div class="hom-aob-dots" id="hom-aob-dots"></div>
+          <div class="hom-aob-emoji" id="hom-aob-emoji"></div>
+          <div class="hom-aob-title" id="hom-aob-title"></div>
+          <div class="hom-aob-body" id="hom-aob-body"></div>
+          <div class="hom-aob-actions">
+            <button class="hom-aob-btn-skip" id="hom-aob-skip">Skip</button>
+            <button class="hom-aob-btn-next" id="hom-aob-next">Next</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML("beforeend", html);
+
+    const STEPS = [
+      { emoji: "👋", title: "Welcome to the Admin Panel", body: "This is your command center. From here you manage members, events, messages, and everything that keeps House of More running.", target: null },
+      { emoji: "📊", title: "Dashboard", body: "Your overview at a glance. See member counts, event activity, and donation totals in one place.", target: ".app-button.admin-dashboard" },
+      { emoji: "📋", title: "Applicants", body: "Review incoming applications. Approve, reject, or flag members from their questionnaire submissions.", target: ".app-button.applications" },
+      { emoji: "👥", title: "Members", body: "Your full member roster. Search, filter by status, and manage each member's profile and standing.", target: ".app-button.members" },
+      { emoji: "🎭", title: "Facilitators", body: "See who is running your events. Facilitators get check-in access and event close permissions.", target: ".app-button.facilitators" },
+      { emoji: "📅", title: "Event Manager", body: "View all events and their RSVP lists. Track attendance and close events after they happen.", target: ".app-button.event-manager" },
+      { emoji: "📬", title: "Message Center", body: "Send announcements, personal notes, and updates directly to members. Messages appear in their portal inbox.", target: ".app-button.admin-messages" },
+      { emoji: "✅", title: "You are ready!", body: "That covers the essentials. The House of More admin panel is yours to run.", target: null },
+    ];
+
+    const STORAGE_KEY_PREFIX = "hom_admin_onboarding_v1_";
+    let currentStep = 0;
+    let adminId = "";
+
+    const overlay = document.getElementById("hom-admin-onboarding");
+    const ring    = document.getElementById("hom-aob-ring");
+    const dotsEl  = document.getElementById("hom-aob-dots");
+    const emojiEl = document.getElementById("hom-aob-emoji");
+    const titleEl = document.getElementById("hom-aob-title");
+    const bodyEl  = document.getElementById("hom-aob-body");
+    const nextBtn = document.getElementById("hom-aob-next");
+    const skipBtn = document.getElementById("hom-aob-skip");
+
+    function getStorageKey() {
+      return STORAGE_KEY_PREFIX + (adminId || "admin");
+    }
+
+    function buildDots() {
+      dotsEl.innerHTML = "";
+      STEPS.forEach(function (_, i) {
+        const dot = document.createElement("div");
+        dot.className = "hom-aob-dot" + (i === currentStep ? " active" : "");
+        dotsEl.appendChild(dot);
+      });
+    }
+
+    function positionRing(selector) {
+      if (!selector) { ring.style.display = "none"; return; }
+      const el = document.querySelector(selector);
+      if (!el) { ring.style.display = "none"; return; }
+      const r = el.getBoundingClientRect();
+      ring.style.display = "block";
+      ring.style.top    = (r.top    - 6) + "px";
+      ring.style.left   = (r.left   - 6) + "px";
+      ring.style.width  = (r.width  + 12) + "px";
+      ring.style.height = (r.height + 12) + "px";
+    }
+
+    function renderStep() {
+      const step   = STEPS[currentStep];
+      const isLast = currentStep === STEPS.length - 1;
+      buildDots();
+      emojiEl.textContent = step.emoji;
+      titleEl.textContent = step.title;
+      bodyEl.textContent  = step.body;
+      nextBtn.textContent = isLast ? "Get Started" : "Next";
+      skipBtn.style.visibility = isLast ? "hidden" : "visible";
+      positionRing(step.target);
+      if (step.target) {
+        const tabBtn = document.querySelector(step.target);
+        if (tabBtn) tabBtn.click();
+      }
+    }
+
+    function markComplete() {
+      localStorage.setItem(getStorageKey(), "true");
+    }
+
+    function closeOverlay() {
+      overlay.classList.remove("active");
+      overlay.style.display = "none";
+      ring.style.display = "none";
+      markComplete();
+    }
+
+    nextBtn.addEventListener("click", function () {
+      if (currentStep < STEPS.length - 1) {
+        currentStep++;
+        renderStep();
+      } else {
+        closeOverlay();
+      }
+    });
+
+    skipBtn.addEventListener("click", function () {
+      closeOverlay();
+    });
+
+    window.addEventListener("resize", function () {
+      if (overlay.style.display !== "none") {
+        positionRing(STEPS[currentStep].target);
+      }
+    });
+
+    function init() {
+      adminId = (document.querySelector('[data-ms-member="id"]') || { textContent: "" }).textContent.trim();
+      if (localStorage.getItem(getStorageKey())) return;
+      currentStep = 0;
+      renderStep();
+      overlay.style.display = "block";
+      overlay.classList.add("active");
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", function () { setTimeout(init, 2000); });
+    } else {
+      setTimeout(init, 2000);
+    }
+  })();
+
 })();
