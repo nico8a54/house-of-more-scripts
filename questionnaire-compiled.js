@@ -59,11 +59,7 @@
 
     console.log("[WEBHOOK] Script ready");
 
-    let isSubmitting = false;
     button.addEventListener("click", async () => {
-      if (isSubmitting) return;
-      isSubmitting = true;
-      button.disabled = true;
       const payload = {};
 
       try {
@@ -105,24 +101,15 @@
           }
         );
 
-        const text = await response.text();
-        let data = {};
-        try { data = JSON.parse(text); } catch(e) {}
-
-        if (!response.ok || data.success === false) {
-          throw new Error(data.message || data.error || `Error ${response.status}`);
-        }
-
-        console.log("[WEBHOOK] Success:", data);
+        if (!response.ok) throw new Error(`Webhook failed: ${response.status}`);
+        console.log("[WEBHOOK] Successfully sent");
 
         // 5. Redirect
         window.location.href = "/application-submitted";
 
       } catch (error) {
         console.error("[WEBHOOK] Error:", error);
-        alert(error.message || "Something went wrong. Please try again.");
-        isSubmitting = false;
-        button.disabled = false;
+        alert("Something went wrong. Please try again.");
       }
     });
   });
