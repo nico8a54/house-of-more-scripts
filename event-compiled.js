@@ -331,7 +331,7 @@
         const payload = {
           event_record: eventRecord,
           member_email: formData.get("Email-Address") || "",
-          profile_record: document.querySelector("#name")?.value?.trim() || "",
+          profile_record: "",
           name: document.querySelector("#name")?.value?.trim() || "",
           status: "booking",
           member: false
