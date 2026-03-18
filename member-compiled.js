@@ -969,6 +969,7 @@
       updateMessagesAlert();
       const activeRow = document.querySelector(".message-row.active") || document.querySelector(".message-row");
       if (!activeRow) return;
+      renderRow(activeRow);
       const messageId = (activeRow.querySelector('[data-field="message-id"]')?.textContent || "").trim();
       try {
         const response = await fetch("https://houseofmore.nico-97c.workers.dev/member-message-action", {
