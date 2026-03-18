@@ -332,6 +332,7 @@
           event_record: eventRecord,
           member_email: formData.get("Email-Address") || "",
           profile_record: document.querySelector("#name")?.value?.trim() || "",
+          name: document.querySelector("#name")?.value?.trim() || "",
           status: "booking",
           member: false
         };
@@ -410,6 +411,7 @@
                 event_record: eventRecord,
                 member_email: memberEmail,
                 profile_record: profileRecord,
+                name: $('[data-ms-member="name"]')?.textContent?.trim() || "",
                 status: statusToSend,
                 member: true,
               }),
