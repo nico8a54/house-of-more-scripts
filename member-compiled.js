@@ -959,6 +959,11 @@
     document.addEventListener("click", async (e) => {
       const btn = e.target.closest(".app-button.messages");
       if (!btn) return;
+
+      // Hide message view while loading
+      if (messageView) messageView.classList.add("hide");
+
+      // Apply filter
       const planEl = document.querySelector('[data-field="plan_name"]');
       const planName = (planEl?.textContent || "").trim().toLowerCase();
       const isFacilitator = planName.includes("facilitator");
@@ -967,17 +972,37 @@
         if (!isFacilitator && recipient === "facilitators") item.classList.add("hide");
       });
       updateMessagesAlert();
-      const activeRow = document.querySelector(".message-item:not(.hide) .message-row.active") || document.querySelector(".message-item:not(.hide) .message-row");
-      if (!activeRow) return;
-      renderRow(activeRow);
-      const messageId = (activeRow.querySelector('[data-field="message-id"]')?.textContent || "").trim();
+
+      // Find top visible row
+      const topRow = Array.from(document.querySelectorAll(".message-row")).find(row => {
+        const item = row.closest(".message-item");
+        return !item || !item.classList.contains("hide");
+      });
+      if (!topRow) return;
+
+      // Set active explicitly
+      document.querySelectorAll(".message-row").forEach(r => r.classList.remove("active"));
+      topRow.classList.add("active");
+
+      // Copy fields to reading panel
+      topRow.querySelectorAll("[data-field]").forEach(field => {
+        const key = field.getAttribute("data-field");
+        if (!key) return;
+        const target = document.getElementById(key);
+        if (target) target.innerHTML = field.innerHTML;
+      });
+
+      // Show message view
+      if (messageView) messageView.classList.remove("hide");
+
+      const messageId = (topRow.querySelector('[data-field="message-id"]')?.textContent || "").trim();
       try {
         const response = await fetch("https://houseofmore.nico-97c.workers.dev/member-message-action", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ member_id: memberId, message_id: messageId, erased: false })
         });
-        updateRowFromWebhook(await response.text(), activeRow);
+        updateRowFromWebhook(await response.text(), topRow);
       } catch (error) {
         console.error("[MEMBER] Messages tab error:", error);
       }
@@ -999,6 +1024,21 @@
         if (response.ok) {
           activeRow.closest(".message-item")?.classList.add("hide");
           updateMessagesAlert();
+
+          const nextRow = Array.from(document.querySelectorAll(".message-row")).find(row => {
+            const item = row.closest(".message-item");
+            return !item || !item.classList.contains("hide");
+          });
+          if (nextRow) {
+            document.querySelectorAll(".message-row").forEach(r => r.classList.remove("active"));
+            nextRow.classList.add("active");
+            nextRow.querySelectorAll("[data-field]").forEach(field => {
+              const key = field.getAttribute("data-field");
+              if (!key) return;
+              const target = document.getElementById(key);
+              if (target) target.innerHTML = field.innerHTML;
+            });
+          }
         }
       } catch (error) {
         console.error("[MEMBER] Erase message error:", error);
@@ -1010,7 +1050,8 @@
     if (deleteMessageBtn) deleteMessageBtn.addEventListener("click", showMessageList);
 
     const firstRow = document.querySelector(".message-row");
-    if (firstRow) renderRow(firstRow);
+    if (firstRow) firstRow.classList.add("active");
+
   });
 
 })();
