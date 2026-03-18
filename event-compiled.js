@@ -16,7 +16,9 @@
     const isAdmin = params.get("admin") === "true";
 
     // Hide all event info sections by default
-    $$(".event-info-wrapper").forEach(wrapper => wrapper.classList.add("hide"));
+    $$(".event-info-wrapper").forEach((wrapper) =>
+      wrapper.classList.add("hide"),
+    );
 
     // Cancel mode
     if (isBooked) {
@@ -29,7 +31,9 @@
 
     // Admin / event-manager mode: show info, hide booking buttons
     if (source === "event-manager" || isAdmin) {
-      $$(".event-info-wrapper").forEach(wrapper => wrapper.classList.remove("hide"));
+      $$(".event-info-wrapper").forEach((wrapper) =>
+        wrapper.classList.remove("hide"),
+      );
       $("#rsvp")?.classList.add("hide");
       $(".button.event-card")?.classList.add("hide");
     }
@@ -68,11 +72,14 @@
 
     let result;
     try {
-      const response = await fetch("https://houseofmore.nico-97c.workers.dev/admin-list-event", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ event_record_id: eventRecordId })
-      });
+      const response = await fetch(
+        "https://houseofmore.nico-97c.workers.dev/admin-list-event",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ event_record_id: eventRecordId }),
+        },
+      );
       result = await response.json();
       console.log("[EVENT] Fetch result:", result);
     } catch (err) {
@@ -86,16 +93,19 @@
 
     // Member lookup by email
     const memberLookup = {};
-    attendees.forEach(member => {
+    attendees.forEach((member) => {
       const email = member?.auth?.email?.toLowerCase()?.trim();
       if (!email) return;
       const first = member?.customFields?.["first-name"] || "";
       const last = member?.customFields?.["last-name"] || "";
-      memberLookup[email] = { id: member?.id || "", name: (first + " " + last).trim() || email };
+      memberLookup[email] = {
+        id: member?.id || "",
+        name: (first + " " + last).trim() || email,
+      };
     });
 
     // Normalize RSVP records
-    const records = rsvps.map(r => {
+    const records = rsvps.map((r) => {
       const email = r.data?.member_email?.toLowerCase()?.trim();
       const member = memberLookup[email] || {};
       return {
@@ -104,12 +114,18 @@
         email: email || "",
         booking_status: r.data?.status || "",
         rating: r.data?.rating || null,
-        review: r.data?.review || ""
+        review: r.data?.review || "",
       };
     });
 
     // Sort by status priority
-    const priority = { checked: 1, booked: 2, canceled: 3, cancelled: 3, noshow: 4 };
+    const priority = {
+      checked: 1,
+      booked: 2,
+      canceled: 3,
+      cancelled: 3,
+      noshow: 4,
+    };
     records.sort((a, b) => {
       const A = priority[(a.booking_status || "").toLowerCase()] || 99;
       const B = priority[(b.booking_status || "").toLowerCase()] || 99;
@@ -142,37 +158,46 @@
 
     // Attendees list
     if (attendantsTemplate && attendantsList) {
-      Array.from(attendantsList.children).forEach(child => {
+      Array.from(attendantsList.children).forEach((child) => {
         if (child !== attendantsTemplate) child.remove();
       });
       attendantsTemplate.style.display = "none";
-      records.forEach(record => {
+      records.forEach((record) => {
         const clone = attendantsTemplate.cloneNode(true);
         clone.style.display = "";
         renderFields(clone, record);
         const status = (record.booking_status || "").toLowerCase();
         if (status === "checked") {
           clone.querySelector(".check")?.classList.remove("hide");
-          clone.querySelector(".attenda-info-wrapper")?.classList.add("checked");
+          clone
+            .querySelector(".attenda-info-wrapper")
+            ?.classList.add("checked");
         }
         attendantsList.appendChild(clone);
       });
     }
 
     // Reviews
-    const feedback = records.filter(r => r.review || r.rating);
+    const feedback = records.filter((r) => r.review || r.rating);
     if (reviewTemplate && reviewList) {
-      Array.from(reviewList.children).forEach(child => {
+      Array.from(reviewList.children).forEach((child) => {
         if (child !== reviewTemplate) child.remove();
       });
       reviewTemplate.style.display = "none";
-      feedback.forEach(record => {
+      feedback.forEach((record) => {
         const clone = reviewTemplate.cloneNode(true);
         clone.style.display = "";
-        renderFields(clone, { member_name: record.member_name, member_id: record.email, review: record.review });
+        renderFields(clone, {
+          member_name: record.member_name,
+          member_id: record.email,
+          review: record.review,
+        });
         const ratingEl = clone.querySelector('[data-field="rating"]');
         if (ratingEl && record.rating) {
-          ratingEl.textContent = "★★★★★☆☆☆☆☆".slice(5 - record.rating, 10 - record.rating);
+          ratingEl.textContent = "★★★★★☆☆☆☆☆".slice(
+            5 - record.rating,
+            10 - record.rating,
+          );
         }
         reviewList.appendChild(clone);
       });
@@ -183,8 +208,14 @@
     const isEventManager = params.get("source") === "event-manager";
     function applyRsvpButtonState() {
       if (!rsvpBtn) return;
-      if (isAdmin || isEventManager) { rsvpBtn.classList.add("hide"); return; }
-      if (capacity <= -5 && !isCancelMode) { rsvpBtn.classList.add("hide"); return; }
+      if (isAdmin || isEventManager) {
+        rsvpBtn.classList.add("hide");
+        return;
+      }
+      if (capacity <= -5 && !isCancelMode) {
+        rsvpBtn.classList.add("hide");
+        return;
+      }
       rsvpBtn.classList.remove("hide");
       if (isCancelMode) {
         rsvpBtn.textContent = "Cancel My Spot";
@@ -210,8 +241,11 @@
     Handles modal open/close, confirm → /member-rsvp webhook
   =========================================================*/
   document.addEventListener("DOMContentLoaded", () => {
-    const eventRecord = document.getElementById("event-record")?.textContent?.trim();
-    const memberEmail = $('[data-ms-member="email"]')?.textContent?.trim() || "";
+    const eventRecord = document
+      .getElementById("event-record")
+      ?.textContent?.trim();
+    const memberEmail =
+      $('[data-ms-member="email"]')?.textContent?.trim() || "";
     const params = new URLSearchParams(window.location.search);
     const profileRecord = params.get("member_profile");
     const isCancelMode = params.get("booked") === "true";
@@ -238,18 +272,21 @@
       const mode = getRsvpMode();
       if (mode === "cancel") {
         modalTitle.textContent = "You're about to cancel your spot for";
-        messageRsvpAlert.textContent = "Cancellations must be made at least 2 hours before the event. After that, a no-show may result in your membership being frozen.";
+        messageRsvpAlert.textContent =
+          "Cancellations must be made at least 2 hours before the event. After that, a no-show may result in your membership being frozen.";
         rsvpConfirmBtn.textContent = "Confirm Cancel";
         return;
       }
       if (mode === "waiting-list") {
         modalTitle.textContent = "You're joining the waitlist for";
-        messageRsvpAlert.textContent = "If a spot opens, you'll be notified in the order you joined the waitlist. Accepting means committing to attend. No-shows impact fellow members and may result in your membership being frozen.";
+        messageRsvpAlert.textContent =
+          "If a spot opens, you'll be notified in the order you joined the waitlist. Accepting means committing to attend. No-shows impact fellow members and may result in your membership being frozen.";
         rsvpConfirmBtn.textContent = "Confirm Waiting List";
         return;
       }
       modalTitle.textContent = "You're about to book";
-      messageRsvpAlert.textContent = "By confirming, you're committing to attend. You may cancel up to 2 hours before the event through your member portal. Accepting means committing to attend. No-shows impact fellow members and may result in your membership being frozen.";
+      messageRsvpAlert.textContent =
+        "By confirming, you're committing to attend. You may cancel up to 2 hours before the event through your member portal. Accepting means committing to attend. No-shows impact fellow members and may result in your membership being frozen.";
       rsvpConfirmBtn.textContent = "Confirm Booking";
     }
 
@@ -257,17 +294,77 @@
       rsvpBtn.addEventListener("click", (e) => {
         e.preventDefault();
 
-        // Members-only gate: redirect non-members to log-in
         const membersTag = document.querySelector(".members-tag");
         const isMembersOnly = membersTag && membersTag.offsetParent !== null;
-        if (!profileRecord && isMembersOnly) {
-          window.location.replace("/log-in");
+
+        if (!profileRecord) {
+          // Members-only event: redirect to log-in
+          if (isMembersOnly) {
+            window.location.replace("/log-in");
+            return;
+          }
+          // Open event: show non-member form modal
+          document
+            .querySelector(".modal-form-non-members")
+            ?.classList.remove("hide");
           return;
         }
 
         if (!rsvpAlertModal) return;
         setRsvpModalCopy();
         rsvpAlertModal.classList.remove("hide");
+      });
+    }
+
+    // Non-member booking
+    const bookNonMemberBtn = document.getElementById("book-non-member");
+    if (bookNonMemberBtn && !bookNonMemberBtn.dataset.listenerAttached) {
+      bookNonMemberBtn.dataset.listenerAttached = "true";
+      bookNonMemberBtn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const form = document.getElementById("wf-form-event-non-member-form");
+        if (!form) return;
+
+        const formData = new FormData(form);
+        const payload = {
+          event_record: eventRecord,
+          member_email: formData.get("Email-Address") || "",
+          profile_record: formData.get("Name-and-Last-Name") || "",
+          status: "booking",
+          member: false
+        };
+
+        bookNonMemberBtn.disabled = true;
+
+        try {
+          const response = await fetch(
+            "https://houseofmore.nico-97c.workers.dev/member-rsvp",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            },
+          );
+          const result = (await response.text()).trim();
+          console.log("[EVENT] Non-member RSVP response:", result);
+
+          document
+            .querySelector(".modal-form-non-members")
+            ?.classList.add("hide");
+
+          if (answerModal && messageRespond) {
+            messageRespond.textContent =
+              result || "You have successfully booked this event.";
+            answerModal.classList.remove("hide");
+          }
+        } catch (err) {
+          console.error("[EVENT] Non-member RSVP error:", err);
+          alert("The booking didn't go through.");
+        } finally {
+          bookNonMemberBtn.disabled = false;
+        }
       });
     }
 
@@ -285,7 +382,10 @@
       const parentForm = rsvpConfirmBtn.closest("form");
       if (parentForm && !parentForm.dataset.rsvpSubmitBlocked) {
         parentForm.dataset.rsvpSubmitBlocked = "true";
-        parentForm.addEventListener("submit", (e) => { e.preventDefault(); e.stopPropagation(); });
+        parentForm.addEventListener("submit", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        });
       }
 
       rsvpConfirmBtn.addEventListener("click", async (e) => {
@@ -301,27 +401,36 @@
         console.log("[EVENT] RSVP status:", statusToSend);
 
         try {
-          const response = await fetch("https://houseofmore.nico-97c.workers.dev/member-rsvp", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              event_record: eventRecord,
-              member_email: memberEmail,
-              profile_record: profileRecord,
-              status: statusToSend
-            })
-          });
+          const response = await fetch(
+            "https://houseofmore.nico-97c.workers.dev/member-rsvp",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                event_record: eventRecord,
+                member_email: memberEmail,
+                profile_record: profileRecord,
+                status: statusToSend,
+                member: true,
+              }),
+            },
+          );
           const result = (await response.text()).trim();
           console.log("[EVENT] RSVP response:", result);
 
           rsvpAlertModal?.classList.add("hide");
 
           const responseMap = {
-            "You have successfully booked this event.": "You have successfully booked this event.",
-            "You have canceled your attendance for this event.": "You have canceled your attendance for this event.",
-            "You have already booked this event.": "You have already booked this event.",
-            "Yoy have sign up to a waiting list.": "Yoy have sign up to a waiting list.",
-            "You have sign up to a waiting list.": "You have sign up to a waiting list."
+            "You have successfully booked this event.":
+              "You have successfully booked this event.",
+            "You have canceled your attendance for this event.":
+              "You have canceled your attendance for this event.",
+            "You have already booked this event.":
+              "You have already booked this event.",
+            "Yoy have sign up to a waiting list.":
+              "Yoy have sign up to a waiting list.",
+            "You have sign up to a waiting list.":
+              "You have sign up to a waiting list.",
           };
 
           if (answerModal && messageRespond && responseMap[result]) {
@@ -349,5 +458,4 @@
       });
     }
   });
-
 })();
