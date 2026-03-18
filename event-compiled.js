@@ -256,6 +256,15 @@
     if (rsvpBtn) {
       rsvpBtn.addEventListener("click", (e) => {
         e.preventDefault();
+
+        // Members-only gate: redirect non-members to log-in
+        const membersTag = document.querySelector(".members-tag");
+        const isMembersOnly = membersTag && membersTag.offsetParent !== null;
+        if (!profileRecord && isMembersOnly) {
+          window.location.replace("/log-in");
+          return;
+        }
+
         if (!rsvpAlertModal) return;
         setRsvpModalCopy();
         rsvpAlertModal.classList.remove("hide");
