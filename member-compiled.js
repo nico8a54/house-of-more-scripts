@@ -967,7 +967,7 @@
         if (!isFacilitator && recipient === "facilitators") item.classList.add("hide");
       });
       updateMessagesAlert();
-      const activeRow = document.querySelector(".message-row.active") || document.querySelector(".message-row");
+      const activeRow = document.querySelector(".message-item:not(.hide) .message-row.active") || document.querySelector(".message-item:not(.hide) .message-row");
       if (!activeRow) return;
       renderRow(activeRow);
       const messageId = (activeRow.querySelector('[data-field="message-id"]')?.textContent || "").trim();
