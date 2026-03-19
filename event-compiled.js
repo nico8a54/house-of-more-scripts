@@ -110,6 +110,7 @@
       const member = memberLookup[email] || {};
       return {
         member_name: member.name || email || "",
+        member: r.data?.member || "",
         id: member.id || "",
         email: email || "",
         booking_status: r.data?.status || "",
