@@ -38,6 +38,13 @@
       if (profileBtn) setTimeout(() => profileBtn.click(), 0);
       sessionStorage.removeItem("forceClickProfile");
     }
+
+    const forceMembers = sessionStorage.getItem("forceClickMembers");
+    if (forceMembers === "true") {
+      const membersBtn = document.querySelector(".app-button.members");
+      if (membersBtn) setTimeout(() => membersBtn.click(), 0);
+      sessionStorage.removeItem("forceClickMembers");
+    }
   });
 
   /*=========================================================
@@ -55,7 +62,7 @@
     const status = filterBtn.dataset.status;
     if (!status) return;
     const items = document.querySelectorAll(
-      ".list-block-template.member, .list-block-template.applicant"
+      ".list-block-template.member[data-clone='true'], .list-block-template.applicant[data-clone='true']"
     );
     const allFilters = document.querySelectorAll(".status-tag-filter");
     const closeIcon = filterBtn.querySelector(".close-filter");
@@ -64,6 +71,7 @@
     allFilters.forEach(btn => {
       btn.classList.remove("active");
       btn.querySelector(".close-filter")?.classList.add("hide");
+      btn.querySelector(".check")?.classList.remove("hide");
     });
 
     if (isActive) {
@@ -73,9 +81,14 @@
 
     filterBtn.classList.add("active");
     closeIcon?.classList.remove("hide");
+    filterBtn.querySelector(".check")?.classList.add("hide");
     items.forEach(item => {
       const statusTag = item.querySelector(".status-tag");
-      item.style.display = statusTag?.classList.contains(status) ? "grid" : "none";
+      const EXCLUDED = ["frozen", "admin", "rejected", "pending"];
+      const matches = status === "approved"
+        ? !EXCLUDED.some(cls => statusTag?.classList.contains(cls))
+        : statusTag?.classList.contains(status);
+      item.style.display = matches ? "grid" : "none";
     });
   });
 
@@ -511,7 +524,7 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ member_id: activeMemberId, email, plan_id: planId, action })
           });
-          if (res.ok) window.location.reload();
+          if (res.ok) { sessionStorage.setItem("forceClickMembers", "true"); window.location.reload(); }
         } catch (err) {
           console.error("[ADMIN] Action webhook error:", err);
         }
@@ -551,7 +564,7 @@
 
       let pendingCount = 0, approvedCount = 0, frozenCount = 0, rejectedCount = 0, facilitatorCount = 0;
 
-      const attachOpenModal = (clone, memberId) => {
+      const attachOpenModal = (clone, memberId, effectivePlan, connections) => {
         clone.querySelector(".icon-wrapper.view-record")?.addEventListener("click", async () => {
           activeMemberId = memberId;
           applicantModal?.classList.remove("hide");
@@ -560,9 +573,32 @@
           Object.entries(details).forEach(([key, value]) => {
             setField(applicantModal, key, value);
             if (key === "application_status") {
+              const isFrozen = /^frozen$/i.test(String(effectivePlan).trim());
+              const status = isFrozen ? effectivePlan : value;
               const modalStatusTag = applicantModal.querySelector('[data-field="application_status"]');
-              applyStatusClass(modalStatusTag, value);
-              updateActionButtons(value);
+
+              // Remove any previously cloned status tags
+              applicantModal.querySelectorAll('.status-tag[data-extra-plan]').forEach(el => el.remove());
+
+              // If member has multiple distinct plans, clone the status tag for each
+              const uniquePlans = [...new Set((connections || []).map(p => String(p.planName).trim()).filter(Boolean))];
+              if (uniquePlans.length > 1 && modalStatusTag) {
+                applyStatusClass(modalStatusTag, uniquePlans[0]);
+                modalStatusTag.textContent = uniquePlans[0];
+                uniquePlans.slice(1).forEach(plan => {
+                  const extra = modalStatusTag.cloneNode(true);
+                  extra.setAttribute("data-extra-plan", "true");
+                  extra.removeAttribute("data-field");
+                  applyStatusClass(extra, plan);
+                  extra.textContent = plan;
+                  modalStatusTag.parentElement.insertBefore(extra, modalStatusTag.nextSibling);
+                });
+              } else {
+                applyStatusClass(modalStatusTag, status);
+                if (modalStatusTag) modalStatusTag.textContent = status;
+              }
+
+              updateActionButtons(status);
             }
           });
         });
@@ -577,9 +613,10 @@
         const normalizedPlan = planName.trim().toLowerCase();
         const isPending = normalizedPlan === "pending";
         if (normalizedPlan === "pending") pendingCount++;
-        if (normalizedPlan === "active") approvedCount++;
         if (normalizedPlan === "frozen") frozenCount++;
         if (normalizedPlan === "rejected") rejectedCount++;
+        const isExcluded = /^(frozen|admin|rejected|pending)$/i.test(normalizedPlan);
+        if (!isExcluded) approvedCount++;
         const template = isPending ? applicantTemplate : memberTemplate;
         const parent = template?.parentElement;
         if (!template || !parent) return;
@@ -594,7 +631,7 @@
         setField(clone, "application_status", planName);
         setInitials(clone, member.customFields?.["first-name"], member.customFields?.["last-name"]);
         applyStatusClass(clone.querySelector(".status-tag"), planName);
-        attachOpenModal(clone, member.id);
+        attachOpenModal(clone, member.id, planName, connections);
         clone.style.display = "grid";
         parent.appendChild(clone);
       });
