@@ -4,6 +4,14 @@
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => document.querySelectorAll(selector);
 
+  function renderFields(scope, data) {
+    Object.entries(data).forEach(([key, value]) => {
+      const field = scope.querySelector(`[data-field="${key}"]`);
+      if (!field || value === null || value === undefined) return;
+      field.textContent = value;
+    });
+  }
+
   /*=========================================================
     SECTION 1 — CHECK ORIGIN & SET UI STATE
     src: event-check-origin.js
@@ -132,14 +140,6 @@
       const B = priority[(b.booking_status || "").toLowerCase()] || 99;
       return A - B;
     });
-
-    function renderFields(scope, data) {
-      Object.entries(data).forEach(([key, value]) => {
-        const field = scope.querySelector(`[data-field="${key}"]`);
-        if (!field || value === null || value === undefined) return;
-        field.textContent = value;
-      });
-    }
 
     // Capacity tag
     if (capacityEl) {
@@ -461,4 +461,186 @@
       });
     }
   });
+
+  /*=========================================================
+    SECTION 5 — QR CHECK-IN SCANNER
+    src: event-checkin-scanner.js
+    Camera-based QR scanner for facilitator check-in
+  =========================================================*/
+  const WEBHOOK_URL =
+    "https://houseofmore.nico-97c.workers.dev/facilitator-checkin";
+
+  const startBtn = document.getElementById("startBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const statusEl = document.getElementById("status");
+  const answerEl = document.getElementById("answer");
+  const eventIdEl = document.getElementById("event-id");
+
+  let html5QrCode = null;
+  let lastFiredAt = 0;
+  const COOLDOWN_MS = 4000;
+
+  // Init hidden elements
+  if (eventIdEl) eventIdEl.classList.add("hide");
+  if (stopBtn) stopBtn.classList.add("hide");
+  if (answerEl) {
+    answerEl.classList.add("hide");
+    answerEl.classList.remove("rejected");
+    answerEl.textContent = "";
+  }
+  document.querySelectorAll(".check").forEach((el) => el.classList.add("hide"));
+
+  function setStatus(text) {
+    if (!statusEl) return;
+    statusEl.textContent = text;
+  }
+
+  function updateAttendantRow(data) {
+    const memberId = data?.id;
+    if (!memberId) return;
+    document.querySelectorAll('[data-field="id"]').forEach((idEl) => {
+      if (idEl.textContent.trim() !== memberId) return;
+      const row = idEl.closest(".attendants-row");
+      if (!row) return;
+      renderFields(row, data);
+      const status = (data.booking_status || "").toLowerCase();
+      const checkEl = row.querySelector(".check");
+      const infoWrapper = row.querySelector(".attenda-info-wrapper");
+      if (status === "checked") {
+        if (checkEl) checkEl.classList.remove("hide");
+        if (infoWrapper) infoWrapper.classList.add("checked");
+      }
+    });
+  }
+
+  async function fireWebhook(qrText) {
+    setStatus("Sending...");
+    const eventId = eventIdEl ? eventIdEl.textContent.trim() : null;
+    const payload = {
+      qr_text: qrText,
+      event_id: eventId,
+      scanned_at: new Date().toISOString(),
+    };
+    const res = await fetch(WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(text || "Webhook failed");
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  }
+
+  function resetScanUI() {
+    setTimeout(() => {
+      const readerEl = document.querySelector(".reader");
+      if (answerEl) {
+        answerEl.classList.add("hide");
+        answerEl.classList.remove("rejected");
+        answerEl.textContent = "";
+      }
+      if (readerEl) {
+        readerEl.classList.remove("accepted");
+        readerEl.classList.remove("rejected");
+      }
+      lastFiredAt = 0;
+      setStatus("Stopped");
+    }, 3000);
+  }
+
+  async function stopScan() {
+    if (!html5QrCode) return;
+    try {
+      await html5QrCode.stop();
+      await html5QrCode.clear();
+    } catch (e) {}
+    html5QrCode = null;
+    if (startBtn) startBtn.classList.remove("hide");
+    if (stopBtn) stopBtn.classList.add("hide");
+    setStatus("Stopped");
+  }
+
+  async function startScan() {
+    if (html5QrCode) return;
+    if (startBtn) startBtn.classList.add("hide");
+    if (stopBtn) stopBtn.classList.remove("hide");
+    html5QrCode = new Html5Qrcode("reader");
+    setStatus("Starting camera...");
+
+    const onScanSuccess = async (decodedText) => {
+      const now = Date.now();
+      if (now - lastFiredAt < COOLDOWN_MS) return;
+      lastFiredAt = now;
+
+      try {
+        const webhookResponse = await fireWebhook(decodedText);
+        console.log("[CHECK-IN] Webhook response:", webhookResponse);
+        const readerEl = document.querySelector(".reader");
+
+        if (typeof webhookResponse === "string") {
+          if (answerEl) {
+            answerEl.textContent = webhookResponse;
+            answerEl.classList.remove("hide");
+            answerEl.classList.add("rejected");
+          }
+          if (readerEl) {
+            readerEl.classList.add("rejected");
+            readerEl.classList.remove("accepted");
+          }
+          setStatus("Rejected");
+          await stopScan();
+          resetScanUI();
+          return;
+        }
+
+        if (answerEl) {
+          answerEl.textContent = webhookResponse.member_name || "Member found";
+          answerEl.classList.remove("hide");
+          answerEl.classList.remove("rejected");
+        }
+        if (readerEl) {
+          readerEl.classList.add("accepted");
+          readerEl.classList.remove("rejected");
+        }
+        updateAttendantRow(webhookResponse);
+        setStatus("Done");
+        await stopScan();
+        resetScanUI();
+      } catch (e) {
+        console.error("[CHECK-IN] Webhook error:", e);
+        const readerEl = document.querySelector(".reader");
+        if (readerEl) {
+          readerEl.classList.add("rejected");
+          readerEl.classList.remove("accepted");
+        }
+        if (answerEl) {
+          answerEl.textContent = e.message || "Error";
+          answerEl.classList.remove("hide");
+          answerEl.classList.add("rejected");
+        }
+        setStatus("Error");
+        await stopScan();
+        resetScanUI();
+      }
+    };
+
+    try {
+      await html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        onScanSuccess,
+      );
+      setStatus("Scanning...");
+    } catch (e) {
+      html5QrCode = null;
+      setStatus("Camera failed: " + (e.message || e));
+    }
+  }
+
+  if (startBtn) startBtn.addEventListener("click", startScan);
+  if (stopBtn) stopBtn.addEventListener("click", stopScan);
 })();
