@@ -117,7 +117,7 @@
       const email = r.data?.member_email?.toLowerCase()?.trim();
       const member = memberLookup[email] || {};
       return {
-        member_name: member.name || email || "",
+        member_name: r.data?.member_name || member.name || email || "",
         member: r.data?.member || "",
         id: member.id || "",
         email: email || "",
