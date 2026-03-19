@@ -46,8 +46,10 @@
       return { res, data };
     }
 
+    const paramCount = [memberId, eventId, memberEmail].filter(Boolean).length;
+
     // 1) Fetch on load — render member & event names
-    if (memberId && eventId && memberEmail) {
+    if (paramCount >= 2) {
       try {
         const { data } = await postToWebhook();
         console.log("[REVIEW] Load response:", data);
@@ -61,7 +63,7 @@
     }
 
     // 2) Show modal once per session
-    if (memberId && eventId && memberEmail && modal) {
+    if (paramCount >= 2 && modal) {
       if (!sessionStorage.getItem(reviewKey)) {
         modal.classList.remove("hide");
         sessionStorage.setItem(reviewKey, "true");
