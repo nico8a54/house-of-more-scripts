@@ -570,7 +570,9 @@
 
       // --- RENDER MEMBERS + APPLICANTS ---
       members.forEach(member => {
-        const planName = member.planConnections?.[0]?.planName;
+        const connections = member.planConnections || [];
+        const frozenConn = connections.find(p => /^frozen$/i.test(String(p.planName).trim()));
+        const planName = (frozenConn || connections[0])?.planName;
         if (!planName) return;
         const normalizedPlan = planName.trim().toLowerCase();
         const isPending = normalizedPlan === "pending";
