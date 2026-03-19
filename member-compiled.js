@@ -361,9 +361,19 @@
       if (hasFacilitator) show(ui.facilitatorMenu);
     }
 
+    const PAY_PLANS = new Set(["advocate","builder","champion","neighbor","partner","patron","supporter","sustainer","visionary"]);
+
+    function updateCancelPlan(data) {
+      const cancelPlanEl = document.querySelector(".cancel-plan");
+      if (!cancelPlanEl) return;
+      const hasPayPlan = Array.isArray(data?.plan_name) && data.plan_name.some(plan => PAY_PLANS.has(String(plan?.planName || "").toLowerCase()));
+      cancelPlanEl.classList.toggle("hide", !hasPayPlan);
+    }
+
     function renderProfile(data) {
       if (!data) return;
       updateFacilitatorMenu(data);
+      updateCancelPlan(data);
       Object.entries(data).forEach(([key, value]) => {
         if (value === null || value === undefined) return;
         const checkboxes = document.querySelectorAll(`input[type="checkbox"][name="${key}"]`);
