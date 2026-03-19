@@ -413,7 +413,7 @@
                 event_record: eventRecord,
                 member_email: memberEmail,
                 profile_record: profileRecord,
-                name: $('[data-ms-member="name"]')?.textContent?.trim() || "",
+                name: (($('[data-ms-member="first-name"]')?.textContent?.trim() || "") + " " + ($('[data-ms-member="last-name"]')?.textContent?.trim() || "")).trim(),
                 status: statusToSend,
                 member: true,
               }),
