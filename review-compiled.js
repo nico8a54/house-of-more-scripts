@@ -54,11 +54,16 @@
         const { data } = await postToWebhook();
         console.log("[REVIEW] Load response:", data);
         if (Array.isArray(data) && data[0]?.data) {
-          if (memberNameEl) memberNameEl.textContent = data[0].data.member_name || "";
+          if (memberNameEl) {
+            const name = data[0].data.member_name;
+            if (name) { memberNameEl.textContent = name; }
+            else { memberNameEl.style.display = "none"; }
+          }
           if (eventNameEl)  eventNameEl.textContent  = data[0].data.event_name  || "";
         }
       } catch (err) {
         console.error("[REVIEW] Load error:", err);
+        if (memberNameEl) memberNameEl.style.display = "none";
       }
     }
 
