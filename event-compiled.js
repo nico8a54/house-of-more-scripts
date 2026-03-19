@@ -122,6 +122,7 @@
         id: member.id || "",
         email: email || "",
         booking_status: r.data?.status || "",
+        rsvp_record_id: r.data?.rsvp_record_id || "",
         rating: r.data?.rating || null,
         review: r.data?.review || "",
       };
