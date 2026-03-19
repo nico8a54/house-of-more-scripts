@@ -497,11 +497,9 @@
 
   function updateAttendantRow(data) {
     const memberId = data?.id;
-    if (!memberId) return;
-    document.querySelectorAll('[data-field="id"]').forEach((idEl) => {
-      if (idEl.textContent.trim() !== memberId) return;
-      const row = idEl.closest(".attendants-row");
-      if (!row) return;
+    const useEmail = !memberId && data?.member === false && data?.email;
+
+    function applyChecked(row) {
       renderFields(row, data);
       const status = (data.booking_status || "").toLowerCase();
       const checkEl = row.querySelector(".check");
@@ -510,7 +508,21 @@
         if (checkEl) checkEl.classList.remove("hide");
         if (infoWrapper) infoWrapper.classList.add("checked");
       }
-    });
+    }
+
+    if (memberId) {
+      document.querySelectorAll('[data-field="id"]').forEach((idEl) => {
+        if (idEl.textContent.trim() !== memberId) return;
+        const row = idEl.closest(".attendants-row");
+        if (row) applyChecked(row);
+      });
+    } else if (useEmail) {
+      document.querySelectorAll('[data-field="email"]').forEach((emailEl) => {
+        if (emailEl.textContent.trim().toLowerCase() !== data.email.toLowerCase()) return;
+        const row = emailEl.closest(".attendants-row");
+        if (row) applyChecked(row);
+      });
+    }
   }
 
   async function fireWebhook(qrText) {
