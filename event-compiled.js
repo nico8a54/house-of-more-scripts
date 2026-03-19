@@ -497,6 +497,7 @@
   }
 
   function updateAttendantRow(data) {
+    const rsvpId = data?.rsvp_record_id;
     const memberId = data?.id;
     const useEmail = !memberId && data?.member === false && data?.email;
 
@@ -511,7 +512,13 @@
       }
     }
 
-    if (memberId) {
+    if (rsvpId) {
+      document.querySelectorAll('[data-field="rsvp_record_id"]').forEach((el) => {
+        if (el.textContent.trim() !== rsvpId) return;
+        const row = el.closest(".attendants-row");
+        if (row) applyChecked(row);
+      });
+    } else if (memberId) {
       document.querySelectorAll('[data-field="id"]').forEach((idEl) => {
         if (idEl.textContent.trim() !== memberId) return;
         const row = idEl.closest(".attendants-row");
