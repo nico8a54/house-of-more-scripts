@@ -329,22 +329,17 @@
         const form = document.getElementById("wf-form-event-non-member-form");
         if (!form) return;
 
-        const formData = new FormData(form);
-        const email = (formData.get("Email-Address") || "").trim();
-        const name = document.querySelector("#name")?.value?.trim() || "";
-
-        if (!name || !email) {
-          form.querySelectorAll("input[required], input[type='email']").forEach((input) => {
-            if (!input.value.trim()) input.reportValidity();
-          });
+        if (!form.checkValidity()) {
+          form.reportValidity();
           return;
         }
 
+        const formData = new FormData(form);
         const payload = {
           event_record: eventRecord,
-          member_email: email,
+          member_email: formData.get("Email-Address") || "",
           profile_record: "",
-          name,
+          name: document.querySelector("#name")?.value?.trim() || "",
           status: "booking",
           member: false
         };
