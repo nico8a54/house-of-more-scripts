@@ -330,11 +330,21 @@
         if (!form) return;
 
         const formData = new FormData(form);
+        const email = (formData.get("Email-Address") || "").trim();
+        const name = document.querySelector("#name")?.value?.trim() || "";
+
+        if (!name || !email) {
+          form.querySelectorAll("input[required], input[type='email']").forEach((input) => {
+            if (!input.value.trim()) input.reportValidity();
+          });
+          return;
+        }
+
         const payload = {
           event_record: eventRecord,
-          member_email: formData.get("Email-Address") || "",
+          member_email: email,
           profile_record: "",
-          name: document.querySelector("#name")?.value?.trim() || "",
+          name,
           status: "booking",
           member: false
         };
