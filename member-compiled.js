@@ -792,6 +792,8 @@
             receiptEl.href = record.data.receipt_url;
             receiptEl.target = "_blank";
             receiptEl.rel = "noopener noreferrer";
+            receiptEl.textContent = "Download Receipt";
+            receiptEl.style.color = "#0070f3";
           } else {
             receiptEl.classList.add("hide");
           }
