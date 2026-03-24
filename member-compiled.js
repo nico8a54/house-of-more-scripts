@@ -1065,6 +1065,8 @@
               const target = document.getElementById(key);
               if (target) target.innerHTML = field.innerHTML;
             });
+          } else {
+            if (messageView) messageView.classList.add("hide");
           }
         }
       } catch (error) {
