@@ -366,8 +366,12 @@
     function updateCancelPlan(data) {
       const cancelPlanEl = document.querySelector(".cancel-plan");
       if (!cancelPlanEl) return;
-      const hasPayPlan = Array.isArray(data?.plan_name) && data.plan_name.some(plan => PAY_PLANS.has(String(plan?.planName || "").toLowerCase()));
-      cancelPlanEl.classList.toggle("hide", !hasPayPlan);
+      const hasActivePayPlan = Array.isArray(data?.plan_name) && data.plan_name.some(plan => {
+        if (!PAY_PLANS.has(String(plan?.planName || "").toLowerCase())) return false;
+        const status = String(plan?.status || "").toLowerCase();
+        return status !== "canceled" && status !== "cancelled";
+      });
+      cancelPlanEl.classList.toggle("hide", !hasActivePayPlan);
     }
 
     function renderProfile(data) {
