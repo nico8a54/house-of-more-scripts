@@ -880,7 +880,6 @@
     const backToListBtn = document.getElementById("back-to-list");
     const deleteMessageBtn = document.getElementById("delete-message");
 
-
     function showMessageView() {
       if (messageView) messageView.classList.remove("hide-mobile-landscape");
       if (messageList) messageList.classList.add("hide-mobile-landscape");
@@ -893,12 +892,15 @@
       if (newMessageBtn) newMessageBtn.classList.remove("hide-mobile-landscape");
       if (backToListBtn) backToListBtn.classList.add("hide");
     }
-    let _unreadMessageIds = new Set();
-
     function updateMessagesAlert() {
       const alertEl = document.querySelector(".app-button.messages .alert");
       if (!alertEl) return;
-      if (_unreadMessageIds.size > 0) alertEl.classList.remove("hide");
+      const visibleRows = Array.from(document.querySelectorAll(".message-row")).filter(row => {
+        const item = row.closest(".message-item");
+        return !item || !item.classList.contains("hide");
+      });
+      const hasUnread = visibleRows.some(row => !row.classList.contains("read"));
+      if (hasUnread) alertEl.classList.remove("hide");
       else alertEl.classList.add("hide");
     }
     function safeParseJSON(value) {
@@ -948,16 +950,12 @@
         console.log("[MEMBER] Messages load response:", rawResponse);
         const parsed = safeParseJSON(rawResponse);
         const records = parsed?.data?.records || [];
-        _unreadMessageIds = new Set();
         document.querySelectorAll(".message-row").forEach(row => {
           const messageId = (row.querySelector('[data-field="message-id"]')?.textContent || "").trim();
           const matched = records.find(r => r?.data?.message_record_id === messageId);
           if (!matched) return;
-          const isRead = String(matched.data.read || "").toLowerCase() === "true";
-          const isErased = String(matched.data.erased || "").toLowerCase() === "true";
-          if (isRead) row.classList.add("read");
-          if (isErased) row.closest(".message-item")?.classList.add("hide");
-          if (!isRead && !isErased) _unreadMessageIds.add(messageId);
+          if (String(matched.data.read || "").toLowerCase() === "true") row.classList.add("read");
+          if (String(matched.data.erased || "").toLowerCase() === "true") row.closest(".message-item")?.classList.add("hide");
         });
         updateMessagesAlert();
       } catch (error) {
@@ -972,8 +970,6 @@
       renderRow(row);
       showMessageView();
       const messageId = (row.querySelector('[data-field="message-id"]')?.textContent || "").trim();
-      _unreadMessageIds.delete(messageId);
-      updateMessagesAlert();
       try {
         const response = await fetch("https://houseofmore.nico-97c.workers.dev/member-message-action", {
           method: "POST",
@@ -1054,7 +1050,6 @@
         });
         if (response.ok) {
           activeRow.closest(".message-item")?.classList.add("hide");
-          _unreadMessageIds.delete(messageId);
           updateMessagesAlert();
 
           const nextRow = Array.from(document.querySelectorAll(".message-row")).find(row => {
