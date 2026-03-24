@@ -880,6 +880,9 @@
     const backToListBtn = document.getElementById("back-to-list");
     const deleteMessageBtn = document.getElementById("delete-message");
 
+    const alertEl = document.querySelector(".app-button.messages .alert");
+    if (alertEl) alertEl.classList.add("hide");
+
     function showMessageView() {
       if (messageView) messageView.classList.remove("hide-mobile-landscape");
       if (messageList) messageList.classList.add("hide-mobile-landscape");
