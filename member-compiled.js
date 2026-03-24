@@ -787,10 +787,14 @@
         const amountEl = clone.querySelector(".donation-amount");
         if (amountEl) amountEl.textContent = "$" + amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const receiptEl = clone.querySelector(".donation-receipt");
-        if (receiptEl && record.data.receipt_url) {
-          receiptEl.href = record.data.receipt_url;
-          receiptEl.target = "_blank";
-          receiptEl.rel = "noopener noreferrer";
+        if (receiptEl) {
+          if (record.data.receipt_url) {
+            receiptEl.href = record.data.receipt_url;
+            receiptEl.target = "_blank";
+            receiptEl.rel = "noopener noreferrer";
+          } else {
+            receiptEl.classList.add("hide");
+          }
         }
         const dateEl = clone.querySelector(".donated-at");
         if (dateEl) dateEl.textContent = new Date(record.createdAt).toLocaleDateString();
