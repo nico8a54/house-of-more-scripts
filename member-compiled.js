@@ -779,6 +779,7 @@
 
       records.forEach(record => {
         if (!record?.data) return;
+        console.log("[MEMBER] Donation record:", JSON.stringify(record.data));
         const clone = template.cloneNode(true);
         clone.setAttribute("data-donation-clone", "true");
         clone.style.removeProperty("display");
