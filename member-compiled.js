@@ -880,8 +880,6 @@
     const backToListBtn = document.getElementById("back-to-list");
     const deleteMessageBtn = document.getElementById("delete-message");
 
-    const alertEl = document.querySelector(".app-button.messages .alert");
-    if (alertEl) alertEl.classList.add("hide");
 
     function showMessageView() {
       if (messageView) messageView.classList.remove("hide-mobile-landscape");
@@ -898,11 +896,13 @@
     function updateMessagesAlert() {
       const alertEl = document.querySelector(".app-button.messages .alert");
       if (!alertEl) return;
-      const visibleRows = Array.from(document.querySelectorAll(".message-row")).filter(row => {
+      const hasUnread = Array.from(document.querySelectorAll(".message-row")).some(row => {
+        const messageId = (row.querySelector('[data-field="message-id"]')?.textContent || "").trim();
+        if (!messageId) return false;
         const item = row.closest(".message-item");
-        return !item || !item.classList.contains("hide");
+        if (item && item.classList.contains("hide")) return false;
+        return !row.classList.contains("read");
       });
-      const hasUnread = visibleRows.some(row => !row.classList.contains("read"));
       if (hasUnread) alertEl.classList.remove("hide");
       else alertEl.classList.add("hide");
     }
