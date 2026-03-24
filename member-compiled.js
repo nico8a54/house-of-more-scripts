@@ -779,7 +779,6 @@
 
       records.forEach(record => {
         if (!record?.data) return;
-        console.log("[MEMBER] Donation record:", JSON.stringify(record.data));
         const clone = template.cloneNode(true);
         clone.setAttribute("data-donation-clone", "true");
         clone.style.removeProperty("display");
@@ -787,8 +786,12 @@
         totalImpact += amount;
         const amountEl = clone.querySelector(".donation-amount");
         if (amountEl) amountEl.textContent = "$" + amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const typeEl = clone.querySelector(".donation-type");
-        if (typeEl) typeEl.textContent = record.data.type === "subscription" ? "Monthly" : "One-Time";
+        const receiptEl = clone.querySelector(".donation-receipt");
+        if (receiptEl && record.data.receipt_url) {
+          receiptEl.href = record.data.receipt_url;
+          receiptEl.target = "_blank";
+          receiptEl.rel = "noopener noreferrer";
+        }
         const dateEl = clone.querySelector(".donated-at");
         if (dateEl) dateEl.textContent = new Date(record.createdAt).toLocaleDateString();
         container.appendChild(clone);
