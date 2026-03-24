@@ -405,7 +405,10 @@
         if (!elements.length) return;
         let displayValue = value;
         if (Array.isArray(value)) {
-          displayValue = value.map(v => v?.planName || v).filter(Boolean).join(", ");
+          const filtered = key === "plan_name"
+            ? value.filter(v => { const s = String(v?.status || "").toLowerCase(); return s !== "canceled" && s !== "cancelled"; })
+            : value;
+          displayValue = filtered.map(v => v?.planName || v).filter(Boolean).join(", ");
         }
         if (key === "birthday") displayValue = toDateInputValue(displayValue);
         elements.forEach(el => {
