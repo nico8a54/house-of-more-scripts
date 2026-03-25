@@ -1,0 +1,1427 @@
+{
+  "element_styles": [
+    {
+      "name": "p",
+      "cssClass": "p",
+      "id": "225dbe9a-1b97-0e25-2068-2dca85d8ea74"
+    },
+    {
+      "name": "ul",
+      "cssClass": "ul",
+      "id": "default-ul"
+    },
+    {
+      "name": "li",
+      "cssClass": "li",
+      "id": "default-li"
+    },
+    {
+      "name": "ol",
+      "cssClass": "ol",
+      "id": "default-ol"
+    },
+    {
+      "name": "figcaption",
+      "cssClass": "figcaption",
+      "id": "default-figcaption"
+    },
+    {
+      "name": "figure",
+      "cssClass": "figure",
+      "id": "default-figure"
+    },
+    {
+      "name": "Section",
+      "cssClass": "section",
+      "id": "6d0603f2-9200-8d9a-ce34-beac0591298e"
+    },
+    {
+      "name": "h1",
+      "cssClass": "h1",
+      "id": "default-h1"
+    },
+    {
+      "name": "a",
+      "cssClass": "a",
+      "id": "default-a"
+    },
+    {
+      "name": "h2",
+      "cssClass": "h2",
+      "id": "default-h2"
+    },
+    {
+      "name": "h3",
+      "cssClass": "h3",
+      "id": "default-h3"
+    },
+    {
+      "name": "h4",
+      "cssClass": "h4",
+      "id": "default-h4"
+    },
+    {
+      "name": "h5",
+      "cssClass": "h5",
+      "id": "default-h5"
+    },
+    {
+      "name": "h6",
+      "cssClass": "h6",
+      "id": "default-h6"
+    },
+    {
+      "name": "blockquote",
+      "cssClass": "blockquote",
+      "id": "default-blockquote"
+    }
+  ],
+  "dynamic_js": [],
+  "cms_embed": [
+    {
+      "name": "banner",
+      "cssClass": "banner",
+      "id": "7f8e8d36-03a9-6aea-c597-e17e9c90ba65"
+    },
+    {
+      "name": "modal-event-review",
+      "cssClass": "modal-event-review",
+      "id": "03a58818-a8d3-ef28-8b03-2f9be61aaa3c"
+    },
+    {
+      "name": "collection-list-messages",
+      "cssClass": "collection-list-messages",
+      "id": "846364c3-15e8-936a-7af9-dbc622ca491e"
+    },
+    {
+      "name": "event-item",
+      "cssClass": "event-item",
+      "id": "b97b7164-cb35-a729-0773-a77a65d57950"
+    },
+    {
+      "name": "donation-item",
+      "cssClass": "donation-item",
+      "id": "f82a3ab6-9723-4593-c290-1d65c11fff0b"
+    },
+    {
+      "name": "list-cancels",
+      "cssClass": "list-cancels",
+      "id": "f58c8b43-472d-d6c7-d35d-1643be84800a"
+    },
+    {
+      "name": "no-scrollbar",
+      "cssClass": "no-scrollbar",
+      "id": "c7983e8f-6633-58ed-92b5-2ba4db934442"
+    },
+    {
+      "name": "message-template",
+      "cssClass": "message-template",
+      "id": "df9d51aa-272b-36fe-3aaa-0d58d50e85ab"
+    },
+    {
+      "name": "donation-modal-member",
+      "cssClass": "donation-modal-member",
+      "id": "accd0265-ee88-4c2e-0910-34fd22690226"
+    },
+    {
+      "name": "tier-info",
+      "cssClass": "tier-info",
+      "id": "784c9bd7-c506-a2cc-9954-7d9ead2b265e"
+    },
+    {
+      "name": "sing-in-button",
+      "cssClass": "sing-in-button",
+      "id": "90e6aa8b-9c2e-6c23-028f-7ebe05ee6e5e"
+    },
+    {
+      "name": "donate_image",
+      "cssClass": "donate_image",
+      "id": "34402aed-3080-4c1f-7159-8a6982efb4e9"
+    },
+    {
+      "name": "navbar-global-link",
+      "cssClass": "navbar-global-link",
+      "id": "f4315d78-9d05-4e97-ff56-b73172a5d222"
+    },
+    {
+      "name": "message-list-view",
+      "cssClass": "message-list-view",
+      "id": "04dd2195-8e68-6bf8-16e3-95e4f52a2ba8"
+    },
+    {
+      "name": "hero_grid",
+      "cssClass": "hero_grid",
+      "id": "50ad7ae4-3a00-2e01-e5b1-18196e1d31ba"
+    },
+    {
+      "name": "terms modal",
+      "cssClass": "terms-modal",
+      "id": "95646cfb-8d8f-cdb6-e7b4-bafa4d8cc59d"
+    },
+    {
+      "name": "tag",
+      "cssClass": "tag",
+      "id": "a6ac142e-bb4c-5616-7ba1-2bcdd770205b"
+    },
+    {
+      "name": "hero_image",
+      "cssClass": "hero_image",
+      "id": "50ad7ae4-3a00-2e01-e5b1-18196e1d31aa"
+    },
+    {
+      "name": "list-attendees",
+      "cssClass": "list-attendees",
+      "id": "39b5c579-2f8c-7a55-71a7-305fcc29c8ea"
+    },
+    {
+      "name": "social-wrapper",
+      "cssClass": "social-wrapper",
+      "id": "8da0514a-5f8a-69b4-c825-4dca55f8d073"
+    },
+    {
+      "name": "hero_white-box",
+      "cssClass": "hero_white-box",
+      "id": "50ad7ae4-3a00-2e01-e5b1-18196e1d31ac"
+    },
+    {
+      "name": "event-thumbnail",
+      "cssClass": "event-thumbnail",
+      "id": "5400e2b8-e45e-e333-3057-ec1770720d4e"
+    },
+    {
+      "name": "event-venue",
+      "cssClass": "event-venue",
+      "id": "6d16dc89-9d96-5761-58f5-e808661862fa"
+    },
+    {
+      "name": "profile picture",
+      "cssClass": "profile-picture",
+      "id": "404a3243-4df5-ddc3-216a-644766f4287e"
+    },
+    {
+      "name": "gradient",
+      "cssClass": "gradient",
+      "id": "4b753dfd-9b8e-4dd3-25d7-bd40fff12e18"
+    },
+    {
+      "name": "menu-btn-mobile",
+      "cssClass": "menu-btn-mobile",
+      "id": "a6ff9878-54dc-01cd-c929-cdb616b3889d"
+    },
+    {
+      "name": "modal-close-event",
+      "cssClass": "modal-close-event",
+      "id": "7a726681-8cda-31f1-cbff-b8bc09257dce"
+    },
+    {
+      "name": "list-item-attendant",
+      "cssClass": "list-item-attendant",
+      "id": "e5fb2f17-ba04-5a1d-3a92-aebc3f406aa9"
+    },
+    {
+      "name": "icon-event-info",
+      "cssClass": "icon-event-info",
+      "id": "0f1952a9-e44a-4a49-b8c4-b7c455bb41c0"
+    },
+    {
+      "name": "ms-progress-bar",
+      "cssClass": "ms-progress-bar",
+      "id": "2f7063e7-12d1-67f4-dc7d-46d93ac6a7d7"
+    },
+    {
+      "name": "qr-code-overlay",
+      "cssClass": "qr-code-overlay",
+      "id": "35bd493c-e6db-88a1-e5a7-331f2d68141d"
+    },
+    {
+      "name": "scarlett_logo",
+      "cssClass": "scarlett_logo",
+      "id": "d35635ce-d803-e5fa-ec33-ae8f4f80da3c"
+    },
+    {
+      "name": "filled-info",
+      "cssClass": "filled-info",
+      "id": "72ce63dc-4b50-afbe-ff8e-3cbe453543c6"
+    },
+    {
+      "name": "app-button-member",
+      "cssClass": "app-button-member",
+      "id": "7eead9af-f26e-a504-a84d-b05351f9f6c1"
+    },
+    {
+      "name": "events-wrapper",
+      "cssClass": "events-wrapper",
+      "id": "a838a69e-d523-a327-18e3-79b55b17a47b"
+    },
+    {
+      "name": "div-square",
+      "cssClass": "div-square",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eef2"
+    },
+    {
+      "name": "evevtdata",
+      "cssClass": "evevtdata",
+      "id": "c6276cd4-dae6-62ac-3368-eccb70948e2e"
+    },
+    {
+      "name": "review-modal",
+      "cssClass": "review-modal",
+      "id": "94ad2b3e-fd01-5baa-6f64-868a86dd2e32"
+    },
+    {
+      "name": "message-already-booke",
+      "cssClass": "message-already-booke",
+      "id": "ee973ab3-ff1a-1bd1-bcff-bbda74a6ae93"
+    },
+    {
+      "name": "profile-modal",
+      "cssClass": "profile-modal",
+      "id": "a04f29dd-e60f-0afc-e884-9d2c32731ce3"
+    },
+    {
+      "name": "Empty State",
+      "cssClass": "empty-state",
+      "id": "ff907b24-59a3-4e97-2d77-d4a0a5447de2"
+    },
+    {
+      "name": "rsvp-action",
+      "cssClass": "rsvp-action",
+      "id": "50683ba4-c10e-b6e0-8414-e9c1321cbb8b"
+    },
+    {
+      "name": "slide-content-wrapper",
+      "cssClass": "slide-content-wrapper",
+      "id": "c32942a9-cd96-7242-c113-45e01bff57ad"
+    },
+    {
+      "name": "rich-message",
+      "cssClass": "rich-message",
+      "id": "35def913-3ce5-7340-0239-5d94e2ab4f9a"
+    },
+    {
+      "name": "sign-in-mobile",
+      "cssClass": "sign-in-mobile",
+      "id": "1f31e9a6-df72-1d40-5f7d-308cc539ebc0"
+    },
+    {
+      "name": "hero_button",
+      "cssClass": "hero_button",
+      "id": "50ad7ae4-3a00-2e01-e5b1-18196e1d31b0"
+    },
+    {
+      "name": "section_hero",
+      "cssClass": "section_hero",
+      "id": "50ad7ae4-3a00-2e01-e5b1-18196e1d31c1"
+    },
+    {
+      "name": "members-tag",
+      "cssClass": "members-tag",
+      "id": "a2dd2ef9-044d-db4f-9fc3-88bd9bd7f361"
+    },
+    {
+      "name": "faq-trigger",
+      "cssClass": "faq-trigger",
+      "id": "469ddb40-91f7-1dad-1b14-06675d5dd913"
+    },
+    {
+      "name": "message-card-wrapper",
+      "cssClass": "message-card-wrapper",
+      "id": "5fa8fc25-1d43-ede2-e513-e4a61f3f68ed"
+    },
+    {
+      "name": "event-mentor",
+      "cssClass": "event-mentor",
+      "id": "853969b0-b462-2ce0-92f1-533d1b27da96"
+    },
+    {
+      "name": "close-event-wrapper",
+      "cssClass": "close-event-wrapper",
+      "id": "46368706-3e7d-268c-5ee8-af9ca9272591"
+    },
+    {
+      "name": "collection-messages",
+      "cssClass": "collection-messages",
+      "id": "67080181-c768-4d7e-e029-68b76eef9bc8"
+    },
+    {
+      "name": "footer-social",
+      "cssClass": "footer-social",
+      "id": "f1076b1a-8e92-893f-34eb-c0812ca912d5"
+    }
+  ],
+  "styleguide": [
+    {
+      "name": "styleguide_elements",
+      "cssClass": "styleguide_elements",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eeec"
+    },
+    {
+      "name": "styleguide_paddings",
+      "cssClass": "styleguide_paddings",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eefd"
+    },
+    {
+      "name": "styleguide_Grids",
+      "cssClass": "styleguide_grids",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eeee"
+    },
+    {
+      "name": "styleguide_colors",
+      "cssClass": "styleguide_colors",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef32"
+    },
+    {
+      "name": "styleguide_effects",
+      "cssClass": "styleguide_effects",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef16"
+    },
+    {
+      "name": "rl-styleguide_heading",
+      "cssClass": "rl-styleguide_heading",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef38"
+    },
+    {
+      "name": "rl-styleguide_icons-list",
+      "cssClass": "rl-styleguide_icons-list",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef06"
+    },
+    {
+      "name": "styleguide_utility-classes",
+      "cssClass": "styleguide_utility-classes",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef17"
+    },
+    {
+      "name": "rstyleguide_ui-elements",
+      "cssClass": "rstyleguide_ui-elements",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef29"
+    },
+    {
+      "name": "styleguide_header",
+      "cssClass": "styleguide_header",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef09"
+    },
+    {
+      "name": "rl-styleguide_spacing",
+      "cssClass": "rl-styleguide_spacing",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eed1"
+    },
+    {
+      "name": "styleguide_structure",
+      "cssClass": "styleguide_structure",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eee4"
+    },
+    {
+      "name": "styleguide_classes",
+      "cssClass": "styleguide_classes",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef1a"
+    }
+  ],
+  "copy_variants": [
+    {
+      "name": "Flex Block 59 Copy",
+      "cssClass": "flex-block-59-copy",
+      "id": "8a06fd7b-daa9-e3e5-0510-d2dfcc17e761"
+    },
+    {
+      "name": ".show-calendar Copy",
+      "cssClass": ".show-calendar-copy",
+      "id": "93220e64-a362-bfaf-0ea2-d1ac416d1fa5"
+    },
+    {
+      "name": "message-list-view Copy",
+      "cssClass": "message-list-view-copy",
+      "id": "e3f1c2a3-ea90-51cc-fb4b-f6532fea81e7"
+    },
+    {
+      "name": "ms-progress-indicators Copy",
+      "cssClass": "ms-progress-indicators-copy",
+      "id": "18accfed-7700-77ca-9988-4e75c3fd3551"
+    },
+    {
+      "name": "align-left-bottom Copy",
+      "cssClass": "align-left-bottom-copy",
+      "id": "b70c3b47-a48d-eb3a-473c-70a81b6973d6"
+    },
+    {
+      "name": "popover-event-title Copy",
+      "cssClass": "popover-event-title-copy",
+      "id": "24f5c641-8690-b273-a498-c16ff2d92762"
+    },
+    {
+      "name": "review-wrapper Copy",
+      "cssClass": "review-wrapper-copy",
+      "id": "823152de-2bd8-e362-5c74-8ba455d28c77"
+    },
+    {
+      "name": "event-id Copy",
+      "cssClass": "event-id-copy",
+      "id": "3a4f6201-3bd1-e90c-79ba-f03c7e56fb39"
+    },
+    {
+      "name": "message-respond Copy",
+      "cssClass": "message-respond-copy",
+      "id": "5bd829cd-8ea2-fc12-0bba-93326764bc19"
+    },
+    {
+      "name": "donation-amount Copy",
+      "cssClass": "donation-amount-copy",
+      "id": "2b3d0e03-584f-f68b-9662-85cc6fe5c045"
+    },
+    {
+      "name": "app-button Copy",
+      "cssClass": "app-button-copy",
+      "id": "590c6bc3-6f67-fab2-0e5a-692fae478a75"
+    },
+    {
+      "name": "align-left-top Copy",
+      "cssClass": "align-left-top-copy",
+      "id": "eae18785-93de-32ec-a9d1-bad54bbfd9fe"
+    },
+    {
+      "name": "tag Copy",
+      "cssClass": "tag-copy",
+      "id": "e8896146-d46d-4f84-cc66-3967790e9ab3"
+    },
+    {
+      "name": "List 2 Copy",
+      "cssClass": "list-2-copy",
+      "id": "5a7f8215-a0c7-df09-e7cf-6943d6c42c84"
+    }
+  ],
+  "auto_numbered": [
+    {
+      "name": "Div Block 10",
+      "cssClass": "div-block-10",
+      "id": "8cce0555-1ab1-ab1b-12b7-babef0e38d6a"
+    },
+    {
+      "name": "Image 13",
+      "cssClass": "image-13",
+      "id": "195e7fda-9d10-7fe6-7780-7ab2aff55d45"
+    },
+    {
+      "name": "Form Block 5",
+      "cssClass": "form-block-5",
+      "id": "eed4aba2-7897-11a6-6c4e-39652cb519a6"
+    },
+    {
+      "name": "Div Block 41",
+      "cssClass": "div-block-41",
+      "id": "7289e989-0f03-1ba1-db9a-00e5f0fe2f22"
+    },
+    {
+      "name": "Div Block 112",
+      "cssClass": "div-block-112",
+      "id": "a55db8ab-10e9-49a4-2239-5916a54a0372"
+    },
+    {
+      "name": "Div Block 72",
+      "cssClass": "div-block-72",
+      "id": "b680a319-0797-cc1c-fa1b-a6d263d21c82"
+    },
+    {
+      "name": "Flex Block 50",
+      "cssClass": "flex-block-50",
+      "id": "e6cf19b0-e75f-d3bb-34f2-35f1cbca0905"
+    },
+    {
+      "name": "Code Embed 7",
+      "cssClass": "code-embed-7",
+      "id": "c4d3dd8e-e1c0-5157-0dea-c0171c38b744"
+    },
+    {
+      "name": "Div Block 37",
+      "cssClass": "div-block-37",
+      "id": "4fbb177b-cac8-1af7-31d6-f74953ba70c7"
+    },
+    {
+      "name": "1:1",
+      "cssClass": "1:1",
+      "id": "a17c7b33-d331-f793-180e-2a41e9faf068"
+    },
+    {
+      "name": "Div Block 101",
+      "cssClass": "div-block-101",
+      "id": "cc0ccbe1-d4e4-3541-f166-8b695e13b045"
+    },
+    {
+      "name": "Div Block 9",
+      "cssClass": "div-block-9",
+      "id": "4dab3039-c503-948a-9231-b5759dfabb53"
+    },
+    {
+      "name": "Flex Block 47",
+      "cssClass": "flex-block-47",
+      "id": "9f143daf-f384-f007-80ee-76b8c886a89f"
+    },
+    {
+      "name": "Text Block 26",
+      "cssClass": "text-block-26",
+      "id": "bbd28bfa-4d5e-5daa-0e16-ff60be0eab07"
+    },
+    {
+      "name": "Flex Block 55",
+      "cssClass": "flex-block-55",
+      "id": "f6ad7e12-4609-63d1-9f55-42bc6daa0ee1"
+    },
+    {
+      "name": "Flex Block 11",
+      "cssClass": "flex-block-11",
+      "id": "49a0feac-6e16-8bfc-b86d-809425874619"
+    },
+    {
+      "name": "Code Embed 13",
+      "cssClass": "code-embed-13",
+      "id": "800ab364-f0ba-b8fd-f679-e65dce3367a0"
+    },
+    {
+      "name": "Text Block 3",
+      "cssClass": "text-block-3",
+      "id": "e7d833db-85ac-6de0-52ed-eea99478634e"
+    },
+    {
+      "name": "Link 27",
+      "cssClass": "link-27",
+      "id": "47b3d520-b9c1-7ae6-f810-5aa5c1c0d4e6"
+    },
+    {
+      "name": "Form Block 2",
+      "cssClass": "form-block-2",
+      "id": "ac50bf44-e43d-0de2-d55e-cc41199ec401"
+    },
+    {
+      "name": "Text Block 32",
+      "cssClass": "text-block-32",
+      "id": "83251cd2-1c91-cfb8-e835-fb655f4eefb0"
+    },
+    {
+      "name": "Button 3",
+      "cssClass": "button-3",
+      "id": "baf1c90e-c180-d3d7-23f2-934f7312164f"
+    },
+    {
+      "name": "Text Block 40",
+      "cssClass": "text-block-40",
+      "id": "9d22f9b5-6620-c4b9-4da1-231d4ea7f4dd"
+    },
+    {
+      "name": "Div Block 62",
+      "cssClass": "div-block-62",
+      "id": "f8c012e7-70e5-79e4-ed5f-38cefbb85623"
+    },
+    {
+      "name": "Div Block 54",
+      "cssClass": "div-block-54",
+      "id": "bcba9fcb-f297-28e6-0616-c2251c309351"
+    },
+    {
+      "name": "List 2",
+      "cssClass": "list-2",
+      "id": "28534754-7628-53e4-3041-54a2c38fd4a4"
+    },
+    {
+      "name": "Text Block 63",
+      "cssClass": "text-block-63",
+      "id": "3ff2ce38-bc12-d325-e079-f8d0896c92b9"
+    },
+    {
+      "name": "Code Embed 29",
+      "cssClass": "code-embed-29",
+      "id": "59a5f27c-51e5-8518-53c0-88ea711866e0"
+    },
+    {
+      "name": "4:3",
+      "cssClass": "4:3",
+      "id": "8b4167c3-be76-1b9a-3e8b-28a3426f9d45"
+    },
+    {
+      "name": "Text Block 15",
+      "cssClass": "text-block-15",
+      "id": "f21ba4ee-041d-99d4-8cc8-05db0977ba1b"
+    },
+    {
+      "name": "Div Block 106",
+      "cssClass": "div-block-106",
+      "id": "e0c30c84-d0fb-ea6e-4301-1fdb02e7beb1"
+    },
+    {
+      "name": "Text Block 9",
+      "cssClass": "text-block-9",
+      "id": "ac897a91-7f88-6f40-c386-997580f6789d"
+    },
+    {
+      "name": "Checkbox 4",
+      "cssClass": "checkbox-4",
+      "id": "477d89a0-f58f-ce3e-afa4-a80bfd0376ec"
+    },
+    {
+      "name": "Div Block 16",
+      "cssClass": "div-block-16",
+      "id": "8c57cc00-ff41-695f-d81d-2d434bd999c9"
+    },
+    {
+      "name": "Image 20",
+      "cssClass": "image-20",
+      "id": "b910d379-1516-ffb1-92bd-7ef30b18e87e"
+    },
+    {
+      "name": "Paragraph 11",
+      "cssClass": "paragraph-11",
+      "id": "a462ebcf-b978-bb73-d382-90534d15672e"
+    },
+    {
+      "name": "3:4",
+      "cssClass": "3:4",
+      "id": "a6c8220e-0f4f-f8bc-2b52-4bec8d620f77"
+    },
+    {
+      "name": "Text Span",
+      "cssClass": "text-span",
+      "id": "3469eaa8-b537-cca6-6c84-451355bbb417"
+    },
+    {
+      "name": "Form Block 8",
+      "cssClass": "form-block-8",
+      "id": "31a9525e-3b4a-6269-6f39-cae964c8002d"
+    },
+    {
+      "name": "Div Block 80",
+      "cssClass": "div-block-80",
+      "id": "72a8acc2-5c09-e319-8859-a9d75d513c37"
+    },
+    {
+      "name": "Div Block 39",
+      "cssClass": "div-block-39",
+      "id": "11193f91-13cc-1cb3-05c6-8fc9faf22f6c"
+    },
+    {
+      "name": "Div Block 85",
+      "cssClass": "div-block-85",
+      "id": "2730a0ea-3b7e-6242-3ac9-fd1b38fb89d5"
+    },
+    {
+      "name": "Bold Text",
+      "cssClass": "bold-text",
+      "id": "7d8fddcb-72af-4f92-2471-7b353b64afbc"
+    },
+    {
+      "name": "Collection List Wrapper 4",
+      "cssClass": "collection-list-wrapper-4",
+      "id": "d25042eb-f849-9c0f-fe20-4ac9cd0d23aa"
+    },
+    {
+      "name": "Image 9",
+      "cssClass": "image-9",
+      "id": "59bb836b-7a1b-0a28-b60b-a7642b0c4a15"
+    },
+    {
+      "name": "Div Block 5",
+      "cssClass": "div-block-5",
+      "id": "5a95354b-6014-857c-9da7-52ea82382b20"
+    },
+    {
+      "name": "Div Block 27",
+      "cssClass": "div-block-27",
+      "id": "71833bee-9022-d3c4-3e62-4e1c1fb64663"
+    },
+    {
+      "name": "Code Embed 2",
+      "cssClass": "code-embed-2",
+      "id": "6ba2709a-bce5-7987-9a84-7df325faeb9e"
+    },
+    {
+      "name": "Locale",
+      "cssClass": "locale",
+      "id": "f4315d78-9d05-4e97-ff56-b73172a5d223"
+    },
+    {
+      "name": "Div Block 12",
+      "cssClass": "div-block-12",
+      "id": "62645fb8-ddd2-e29f-edcd-456b2923bd18"
+    },
+    {
+      "name": "Collection Item 3",
+      "cssClass": "collection-item-3",
+      "id": "c6f5a251-2697-dc30-cea7-3322b15c3cf3"
+    },
+    {
+      "name": "Collection List Wrapper 3",
+      "cssClass": "collection-list-wrapper-3",
+      "id": "a54c58b0-bd9e-193b-528f-9286dc1e40e8"
+    },
+    {
+      "name": "Flex Block 15",
+      "cssClass": "flex-block-15",
+      "id": "404ebadf-c27f-4d54-8272-555189a4fe2d"
+    },
+    {
+      "name": "Collection List 2",
+      "cssClass": "collection-list-2",
+      "id": "6621aaa5-b227-cec4-e2a3-0465a4567eb7"
+    },
+    {
+      "name": "Rich Text Block 2",
+      "cssClass": "rich-text-block-2",
+      "id": "17cd899f-8d51-4536-9dbe-1eb31569fd21"
+    },
+    {
+      "name": "Paragraph 6",
+      "cssClass": "paragraph-6",
+      "id": "2bf9eef3-8210-562a-5ec9-b66287db6477"
+    },
+    {
+      "name": "Div Block 93",
+      "cssClass": "div-block-93",
+      "id": "76afe82e-78a4-6ed6-0da0-a879fe03d49f"
+    },
+    {
+      "name": "Code Embed 11",
+      "cssClass": "code-embed-11",
+      "id": "eec880ad-9c67-296a-bcfc-9a53490fdbc7"
+    },
+    {
+      "name": "Text Block 60",
+      "cssClass": "text-block-60",
+      "id": "1352aae3-194e-8320-2a64-fa62d5f6bea3"
+    },
+    {
+      "name": "Code Embed 26",
+      "cssClass": "code-embed-26",
+      "id": "d64926f9-c015-ee6a-109f-6f81b1e6515a"
+    },
+    {
+      "name": "Div Block 76",
+      "cssClass": "div-block-76",
+      "id": "021f0dab-c6ad-7972-5114-853d32ed636f"
+    },
+    {
+      "name": "Text Block 21",
+      "cssClass": "text-block-21",
+      "id": "744d556e-bc6e-9a2b-8602-b5b9fdfec4a2"
+    },
+    {
+      "name": "Form 7",
+      "cssClass": "form-7",
+      "id": "7e953ec1-54cd-222b-7a20-92f913706171"
+    },
+    {
+      "name": "21:9",
+      "cssClass": "21:9",
+      "id": "235fa795-3ebf-6448-a0b3-397a9085f819"
+    },
+    {
+      "name": "Div Block 86",
+      "cssClass": "div-block-86",
+      "id": "a04389f6-091b-5d26-fa3d-d7510acdefcc"
+    },
+    {
+      "name": "Form Block 10",
+      "cssClass": "form-block-10",
+      "id": "76a26a0f-1465-d5dc-0cad-b14b283df766"
+    },
+    {
+      "name": "Div Block 97",
+      "cssClass": "div-block-97",
+      "id": "9b8d384d-26b8-a2b6-a422-5962f2d8bc8c"
+    },
+    {
+      "name": "Text Block 46",
+      "cssClass": "text-block-46",
+      "id": "47e8f138-8e2d-b5c5-e39e-d05fc7130603"
+    },
+    {
+      "name": "Code Embed 14",
+      "cssClass": "code-embed-14",
+      "id": "f77513b5-c2cd-340a-3b59-4513e7231337"
+    },
+    {
+      "name": "Image 23",
+      "cssClass": "image-23",
+      "id": "0b691a52-967b-7dad-8e14-d7a89067cf1a"
+    },
+    {
+      "name": "Code Embed 10",
+      "cssClass": "code-embed-10",
+      "id": "7f83c719-ccd2-b823-924e-5d5df0a6f631"
+    },
+    {
+      "name": "Grid 2",
+      "cssClass": "grid-2",
+      "id": "810dc021-1772-9362-78ef-fe68ca672226"
+    },
+    {
+      "name": "2:3",
+      "cssClass": "2:3",
+      "id": "2160cf23-c7c6-3688-9cae-992fb321e8c2"
+    },
+    {
+      "name": "Collection List 8",
+      "cssClass": "collection-list-8",
+      "id": "5596041b-e6ff-ecb1-b103-c14c13086c34"
+    },
+    {
+      "name": "Code Embed 6",
+      "cssClass": "code-embed-6",
+      "id": "830ef20f-1180-381d-fd51-4ff7a8a3cad3"
+    },
+    {
+      "name": "Text Block 33",
+      "cssClass": "text-block-33",
+      "id": "58b66759-1318-316f-6073-558b159b4b67"
+    },
+    {
+      "name": "Div Block 81",
+      "cssClass": "div-block-81",
+      "id": "5c96c940-4d75-e9a3-36aa-80370d42dbb5"
+    },
+    {
+      "name": "Text Block 28",
+      "cssClass": "text-block-28",
+      "id": "28e945e9-485e-138a-9c95-0467fbfe20a5"
+    },
+    {
+      "name": "Text Block 31",
+      "cssClass": "text-block-31",
+      "id": "b5a92aa2-e151-88c6-219a-6535d7e65da0"
+    },
+    {
+      "name": "Form 2",
+      "cssClass": "form-2",
+      "id": "1ba30152-7f47-6261-bc09-b2f835c41079"
+    },
+    {
+      "name": "Paragraph 10",
+      "cssClass": "paragraph-10",
+      "id": "57f647f0-b5b7-6c85-3684-7256865a6afe"
+    },
+    {
+      "name": "Div Block 78",
+      "cssClass": "div-block-78",
+      "id": "c7670f09-3d7a-c964-24ac-ccac6c1456a8"
+    },
+    {
+      "name": "Text Block 49",
+      "cssClass": "text-block-49",
+      "id": "2c904ac2-d5cc-ab4c-fba9-c69d985035f0"
+    },
+    {
+      "name": "Div Block 59",
+      "cssClass": "div-block-59",
+      "id": "23bb978c-51d6-53a8-e73b-52336ca4d5d9"
+    },
+    {
+      "name": "Text Field 2",
+      "cssClass": "text-field-2",
+      "id": "7c4776db-7baa-2465-0f19-d97c83723292"
+    },
+    {
+      "name": "Text Field 3",
+      "cssClass": "text-field-3",
+      "id": "54518721-8315-afea-f7f5-413dcc5b2de1"
+    },
+    {
+      "name": "Div Block 69",
+      "cssClass": "div-block-69",
+      "id": "daa65f27-29a3-e7be-453b-822e8d53639e"
+    },
+    {
+      "name": "Link 28",
+      "cssClass": "link-28",
+      "id": "65c24faf-fa7b-b7ed-26ce-5d977b507e39"
+    },
+    {
+      "name": "Div Block 13",
+      "cssClass": "div-block-13",
+      "id": "6e3106b1-b9a6-e048-296e-76b9520997f1"
+    },
+    {
+      "name": "Link 26",
+      "cssClass": "link-26",
+      "id": "0ee4f821-d199-4ddf-fb03-58ab80ba26fa"
+    },
+    {
+      "name": "Div Block 11",
+      "cssClass": "div-block-11",
+      "id": "ef831dec-880e-d16a-db9e-3d1e23a6d228"
+    },
+    {
+      "name": "Div Block 89",
+      "cssClass": "div-block-89",
+      "id": "4b2a8411-1f77-2a32-ff20-9377fd0e17d2"
+    },
+    {
+      "name": "Image 12",
+      "cssClass": "image-12",
+      "id": "b5664bc1-a1c8-9ba1-0b95-54cd366f169a"
+    },
+    {
+      "name": "Div Block 40",
+      "cssClass": "div-block-40",
+      "id": "c8c68753-2f0c-48a3-19f8-4ac753acb1d0"
+    },
+    {
+      "name": "Div Block 90",
+      "cssClass": "div-block-90",
+      "id": "831aa025-2336-1c45-f798-f7a8564e9317"
+    },
+    {
+      "name": "3:2",
+      "cssClass": "3:2",
+      "id": "69a9a3f9-12a8-a8f0-1c67-24f31ab8b063"
+    },
+    {
+      "name": "Flex Block 48",
+      "cssClass": "flex-block-48",
+      "id": "977a6021-d274-554e-7b49-eb0ef1a20c86"
+    },
+    {
+      "name": "Div Block 2",
+      "cssClass": "div-block-2",
+      "id": "ac72d8ec-423f-a3d4-167b-d534ef1d2872"
+    },
+    {
+      "name": "Div Block 111",
+      "cssClass": "div-block-111",
+      "id": "f873c970-2fb7-131a-adb1-dd221e29b7a4"
+    },
+    {
+      "name": "Collection List 3",
+      "cssClass": "collection-list-3",
+      "id": "a273da49-3b55-8683-5800-d4870bee1771"
+    },
+    {
+      "name": "Div Block 38",
+      "cssClass": "div-block-38",
+      "id": "bd799d27-bf33-17eb-c085-e8922830dd54"
+    },
+    {
+      "name": "Text Block 62",
+      "cssClass": "text-block-62",
+      "id": "e44919b7-bff6-53b9-dca8-a2796bd1aae4"
+    },
+    {
+      "name": "Text Block 34",
+      "cssClass": "text-block-34",
+      "id": "5a3fb834-67d0-6748-7d8f-d05ef0fc9847"
+    },
+    {
+      "name": "Collection List Wrapper 6",
+      "cssClass": "collection-list-wrapper-6",
+      "id": "1281caf8-885e-fcb3-d035-d0fe61c72985"
+    },
+    {
+      "name": "Image 10",
+      "cssClass": "image-10",
+      "id": "6faa4fbe-4154-b8e3-4af2-748b7b68ec0c"
+    },
+    {
+      "name": "Div Block 92",
+      "cssClass": "div-block-92",
+      "id": "70dde773-4bbd-1e28-b751-636656add9be"
+    },
+    {
+      "name": "Paragraph 12",
+      "cssClass": "paragraph-12",
+      "id": "2a6dda02-70fd-66e0-c8b4-f8074ca19f7b"
+    },
+    {
+      "name": "Text Block 12",
+      "cssClass": "text-block-12",
+      "id": "74ba83a9-cb4e-72f4-f40d-42af115a2d3f"
+    },
+    {
+      "name": "Paragraph 7",
+      "cssClass": "paragraph-7",
+      "id": "3f904f59-c6af-81ab-f19c-cbcfdbbaae9c"
+    },
+    {
+      "name": "Collection Item 5",
+      "cssClass": "collection-item-5",
+      "id": "0843b8ed-d39d-639d-8003-7c9ed8bd9ef8"
+    },
+    {
+      "name": "Collection List 5",
+      "cssClass": "collection-list-5",
+      "id": "4d0e3397-87e3-d4fd-93ba-d2773e41b6cb"
+    },
+    {
+      "name": "Flex Block 7",
+      "cssClass": "flex-block-7",
+      "id": "31c69795-dcd0-0214-9778-7fe593ca7ea2"
+    },
+    {
+      "name": "Code Embed 22",
+      "cssClass": "code-embed-22",
+      "id": "e7e6a3ed-8f7d-c9ce-6d66-9df19aa0f1df"
+    },
+    {
+      "name": "Radio Button 3",
+      "cssClass": "radio-button-3",
+      "id": "e435c144-bff6-8a1b-5f84-af55a742c373"
+    },
+    {
+      "name": "Text Block 59",
+      "cssClass": "text-block-59",
+      "id": "c1c5af80-24e0-e827-7f70-c364d3a776e0"
+    },
+    {
+      "name": "Div Block 100",
+      "cssClass": "div-block-100",
+      "id": "eb4c9f29-57ca-846e-d7d6-cb1879367d77"
+    },
+    {
+      "name": "Text Block 8",
+      "cssClass": "text-block-8",
+      "id": "e5d044d0-3d28-9fe7-e150-6aedee8089f8"
+    },
+    {
+      "name": "Link 24",
+      "cssClass": "link-24",
+      "id": "f4315d78-9d05-4e97-ff56-b73172a5d21f"
+    },
+    {
+      "name": "Text Block 44",
+      "cssClass": "text-block-44",
+      "id": "61edfb4e-754b-89f4-9dda-dfd98827a2e5"
+    },
+    {
+      "name": "Div Block 28",
+      "cssClass": "div-block-28",
+      "id": "69f03e45-f9c8-bb3b-6d0f-89be87d3b71f"
+    },
+    {
+      "name": "Flex Block 6",
+      "cssClass": "flex-block-6",
+      "id": "584be778-d95e-59a0-f949-818b8ad9c42e"
+    },
+    {
+      "name": "Code Embed 19",
+      "cssClass": "code-embed-19",
+      "id": "41989045-2358-7f96-1673-e4b07988c1a8"
+    }
+  ],
+  "utility_keep": [
+    {
+      "name": "padding-horizontal",
+      "cssClass": "padding-horizontal",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eeeb"
+    },
+    {
+      "name": "text-style-italic",
+      "cssClass": "text-style-italic",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef31"
+    },
+    {
+      "name": "padding-xlarge",
+      "cssClass": "padding-xlarge",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eecc"
+    },
+    {
+      "name": "text-style-quote",
+      "cssClass": "text-style-quote",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef11"
+    },
+    {
+      "name": "padding-0",
+      "cssClass": "padding-0",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eece"
+    },
+    {
+      "name": "text-style-nowrap",
+      "cssClass": "text-style-nowrap",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef12"
+    },
+    {
+      "name": "padding-bottom",
+      "cssClass": "padding-bottom",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef34"
+    },
+    {
+      "name": "padding-large",
+      "cssClass": "padding-large",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef13"
+    },
+    {
+      "name": "padding-xxhuge",
+      "cssClass": "padding-xxhuge",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef35"
+    },
+    {
+      "name": "padding-left",
+      "cssClass": "padding-left",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef14"
+    },
+    {
+      "name": "icon-embed-xsmall",
+      "cssClass": "icon-embed-xsmall",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef36"
+    },
+    {
+      "name": "padding-xsmall",
+      "cssClass": "padding-xsmall",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef15"
+    },
+    {
+      "name": "text-size-small 2",
+      "cssClass": "text-size-small-2",
+      "id": "50ad7ae4-3a00-2e01-e5b1-18196e1d31ab"
+    },
+    {
+      "name": "align-center",
+      "cssClass": "align-center",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef39"
+    },
+    {
+      "name": "container-large",
+      "cssClass": "container-large",
+      "id": "50ad7ae4-3a00-2e01-e5b1-18196e1d31ad"
+    },
+    {
+      "name": "padding-global",
+      "cssClass": "padding-global",
+      "id": "50ad7ae4-3a00-2e01-e5b1-18196e1d31be"
+    },
+    {
+      "name": "text-size-medium 2",
+      "cssClass": "text-size-medium-2",
+      "id": "50ad7ae4-3a00-2e01-e5b1-18196e1d31bf"
+    },
+    {
+      "name": "text-style-allcaps",
+      "cssClass": "text-style-allcaps",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef19"
+    },
+    {
+      "name": "text-style-muted",
+      "cssClass": "text-style-muted",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eef1"
+    },
+    {
+      "name": "padding-right",
+      "cssClass": "padding-right",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eed0"
+    },
+    {
+      "name": "padding-small",
+      "cssClass": "padding-small",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eee1"
+    },
+    {
+      "name": "padding-vertical",
+      "cssClass": "padding-vertical",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eee3"
+    },
+    {
+      "name": "icon-embed-xlarge",
+      "cssClass": "icon-embed-xlarge",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eef4"
+    },
+    {
+      "name": "padding-tiny",
+      "cssClass": "padding-tiny",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eef5"
+    },
+    {
+      "name": "Section 5",
+      "cssClass": "section-5",
+      "id": "3f18eecf-d9fa-1cf7-f3de-59bd019e9902"
+    },
+    {
+      "name": "padding-medium",
+      "cssClass": "padding-medium",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef3a"
+    },
+    {
+      "name": "vertical-padding",
+      "cssClass": "vertical-padding",
+      "id": "47e53913-eb45-d5ea-b09a-1fceda151969"
+    },
+    {
+      "name": "padding-xxlarge",
+      "cssClass": "padding-xxlarge",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eed4"
+    },
+    {
+      "name": "icon-embed-small",
+      "cssClass": "icon-embed-small",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eee6"
+    },
+    {
+      "name": "padding-huge",
+      "cssClass": "padding-huge",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef3c"
+    },
+    {
+      "name": "Heading 2",
+      "cssClass": "heading-2",
+      "id": "37b7be1c-b4f9-03b1-f3bd-3eb6d4c927ea"
+    },
+    {
+      "name": "text-style-link",
+      "cssClass": "text-style-link",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eee7"
+    },
+    {
+      "name": "icon-embed-large",
+      "cssClass": "icon-embed-large",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eef8"
+    },
+    {
+      "name": "icon-embed-xxsmall",
+      "cssClass": "icon-embed-xxsmall",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef2c"
+    },
+    {
+      "name": "icon-embed-custom1",
+      "cssClass": "icon-embed-custom1",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eed7"
+    },
+    {
+      "name": "container 2",
+      "cssClass": "container-2",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef1c"
+    },
+    {
+      "name": "text-style-strikethrough",
+      "cssClass": "text-style-strikethrough",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21eee9"
+    },
+    {
+      "name": "padding-top",
+      "cssClass": "padding-top",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef1e"
+    },
+    {
+      "name": "Section 4",
+      "cssClass": "section-4",
+      "id": "b8917092-4c69-44bc-3d2d-3d8c8ecafa1a"
+    },
+    {
+      "name": "padding-xhuge",
+      "cssClass": "padding-xhuge",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef0e"
+    },
+    {
+      "name": "icon-embed-medium",
+      "cssClass": "icon-embed-medium",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef1f"
+    },
+    {
+      "name": "Heading",
+      "cssClass": "heading",
+      "id": "8c7b698c-6069-64de-f3f2-54abfa06397a"
+    }
+  ],
+  "safe_delete": [
+    {
+      "name": "Collection Item",
+      "cssClass": "collection-item",
+      "id": "aabf767a-973a-fef7-0a3d-13d1418f16d6"
+    },
+    {
+      "name": "main-wrapper 2",
+      "cssClass": "main-wrapper-2",
+      "id": "50ad7ae4-3a00-2e01-e5b1-18196e1d31b6"
+    },
+    {
+      "name": "text-block",
+      "cssClass": "text-block",
+      "id": "2f78d1a0-21ae-ab5e-270a-14812fea8edd"
+    },
+    {
+      "name": "Collection List Wrapper",
+      "cssClass": "collection-list-wrapper",
+      "id": "253f49af-1718-5237-0a80-17920d70a60f"
+    },
+    {
+      "name": "paragraphs",
+      "cssClass": "paragraphs",
+      "id": "a33e3ce9-2188-b981-0c5a-ecf778b9e75d"
+    },
+    {
+      "name": "Link Block",
+      "cssClass": "link-block",
+      "id": "6316283d-e626-c375-cd63-b1911ed9bf85"
+    },
+    {
+      "name": "Locales List",
+      "cssClass": "locales-list",
+      "id": "f4315d78-9d05-4e97-ff56-b73172a5d220"
+    },
+    {
+      "name": "small-form-text",
+      "cssClass": "small-form-text",
+      "id": "8904d87d-b821-a306-9b22-0efd242c627b"
+    },
+    {
+      "name": "page-wrapper 2",
+      "cssClass": "page-wrapper-2",
+      "id": "50ad7ae4-3a00-2e01-e5b1-18196e1d31bc"
+    },
+    {
+      "name": "Bold Text 2",
+      "cssClass": "bold-text-2",
+      "id": "ccbf3547-a073-adc0-3e0e-1ec5d406f2cb"
+    },
+    {
+      "name": "Lottie Animation 2",
+      "cssClass": "lottie-animation-2",
+      "id": "49c3624b-dbed-963a-0bde-a224663ac977"
+    },
+    {
+      "name": "Field Label 2",
+      "cssClass": "field-label-2",
+      "id": "6ff68581-87a9-68af-703d-1dc28ad11c6a"
+    },
+    {
+      "name": "Collection List",
+      "cssClass": "collection-list",
+      "id": "5a4daf74-13ea-1a13-190e-4900cf1a3569"
+    },
+    {
+      "name": "Image",
+      "cssClass": "image",
+      "id": "5068c015-4dee-67db-1ecf-468f5e53c202"
+    },
+    {
+      "name": "workspaceHeader",
+      "cssClass": "workspaceheader",
+      "id": "e712a8b3-cb6d-61bd-c35b-ed71db741eab"
+    },
+    {
+      "name": ".show-calendar",
+      "cssClass": ".show-calendar",
+      "id": "271f37f8-3647-829d-dedf-79d615f8b7c0"
+    },
+    {
+      "name": "Rich Text Block",
+      "cssClass": "rich-text-block",
+      "id": "8b4a75fe-e021-a638-6a36-c84e27e3b492"
+    },
+    {
+      "name": "radio-field-holder",
+      "cssClass": "radio-field-holder",
+      "id": "89d1c0a0-db5b-59f3-85ff-9d8e944a1fc5"
+    },
+    {
+      "name": "content_wrapper 2",
+      "cssClass": "content_wrapper-2",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef2d"
+    },
+    {
+      "name": "global_padding 2",
+      "cssClass": "global_padding-2",
+      "id": "55dbe02e-73e9-f523-377a-a4a62e21ef3e"
+    },
+    {
+      "name": "Locales Wrapper",
+      "cssClass": "locales-wrapper",
+      "id": "f4315d78-9d05-4e97-ff56-b73172a5d21d"
+    },
+    {
+      "name": "Checkbox Field 3",
+      "cssClass": "checkbox-field-3",
+      "id": "c187ad1d-ef51-a0e2-011b-422ee2e7fe66"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s \"https://purge.jsdelivr.net/gh/nico8a54/house-of-more-scripts@main/event-compiled.js\")",
+      "Bash(curl -s \"https://cdn.jsdelivr.net/gh/nico8a54/house-of-more-scripts@main/event-compiled.js\")",
+      "Bash(grep -r \"getCurrentMember\\\\|window.$members\\\\|fetch.*webhook\" \"c:\\\\GIT\\\\House of More\\\\house-of-more.webflow\" --include=\"*.js\")",
+      "mcp__claude_ai_Make__executions_list",
+      "Bash(ls \"c:/GIT/House of More/\"*.json)",
+      "Bash(ls \"c:/GIT/House of More/\"*.js)",
+      "Read(//c/Users/Epic Gamer/AppData/Local/Temp/studio1642-ads/**)",
+      "Bash(gh api:*)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Epic Gamer\\AppData\\Local\\Temp\\studio1642-ads"
+    ]
+  }
+}
