@@ -304,8 +304,8 @@
       document.querySelectorAll(".text-area, .selector-wrapper, .checkbox-container")
         .forEach(el => el.classList.add("locked"));
 
-      // Add .filled to all form elements
-      document.querySelectorAll("input, textarea, select, .selector-wrapper, .text-area")
+      // Add .filled to all form elements and text fields
+      document.querySelectorAll("input, textarea, select, .selector-wrapper, .text-area, .field-text")
         .forEach(el => el.classList.add("filled"));
 
       // Checkboxes: only show filled if checked, hide unchecked
