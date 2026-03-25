@@ -321,6 +321,9 @@
       // Remove .filled from all form elements
       document.querySelectorAll("input, textarea, select, .selector-wrapper, .text-area, .checkbox-container, .field-text, .select-field")
         .forEach(el => el.classList.remove("filled", "locked", "hide"));
+      // Lock email — members cannot change it
+      document.querySelectorAll('[data-field="email"], input[name="email"]')
+        .forEach(el => el.classList.add("filled", "locked"));
     }
 
     function syncFilledUIState() {
