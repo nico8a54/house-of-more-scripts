@@ -351,6 +351,22 @@
       if (Array.isArray(value) || (value !== null && typeof value === "object")) return;
       const els = document.querySelectorAll(`[data-field="${key}"]`);
       els.forEach(el => {
+        // Multi-value string (e.g. "value1 / value2") — check matching [data-option] children
+        if (typeof value === "string" && value.includes(" / ")) {
+          const selected = value.split(" / ").map(v => v.trim());
+          el.querySelectorAll("[data-option]").forEach(opt => {
+            const optVal = opt.getAttribute("data-option");
+            const isMatch = selected.includes(optVal);
+            if (opt.tagName === "INPUT" && opt.type === "checkbox") {
+              opt.checked = isMatch;
+            } else {
+              opt.classList.toggle("is-checked", isMatch);
+            }
+          });
+          rendered++;
+          return;
+        }
+        // Single value
         if (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT") {
           el.value = value ?? "";
         } else {
