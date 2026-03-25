@@ -380,6 +380,7 @@
       updateCancelPlan(data);
       Object.entries(data).forEach(([key, value]) => {
         if (value === null || value === undefined) return;
+        if (Array.isArray(value) && key !== "plan_name") return;
         const checkboxes = document.querySelectorAll(`input[type="checkbox"][name="${key}"]`);
         if (checkboxes.length) {
           const values = String(value).split("/").map(normalizeOption);
@@ -503,6 +504,10 @@
       setInitialUI();
       const data = await fetchProfileData();
       if (!data) return;
+      if (data.questionnaire && typeof data.questionnaire === "object") {
+        Object.assign(data, data.questionnaire);
+        delete data.questionnaire;
+      }
       state.webhookData = data;
       addMemberProfileToEventLinks(data);
       renderProfile(data);

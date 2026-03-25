@@ -137,10 +137,64 @@ async function handleQuestionnaireSupabase(payload, env) {
   await supabaseUpsert("member_questionnaire", questionnaireData, "member_id", env.SUPABASE_KEY);
 }
 
+async function handleMemberProfileSupabase(payload, env) {
+  const { member_id } = payload;
+  if (!member_id) throw new Error("member_id is required");
+
+  const sbHeaders = {
+    "apikey":        env.SUPABASE_KEY,
+    "Authorization": `Bearer ${env.SUPABASE_KEY}`,
+  };
+  const mid = encodeURIComponent(member_id);
+
+  const [profileRes, questionnaireRes, rsvpsRes, donationsRes, msRes] = await Promise.all([
+    fetch(`${SUPABASE_URL}/rest/v1/member_profiles?member_id=eq.${mid}&select=*`,                         { headers: sbHeaders }),
+    fetch(`${SUPABASE_URL}/rest/v1/member_questionnaire?member_id=eq.${mid}&select=*`,                    { headers: sbHeaders }),
+    fetch(`${SUPABASE_URL}/rest/v1/event_rsvps?member_id=eq.${mid}&select=*&order=booked_at.desc`,        { headers: sbHeaders }),
+    fetch(`${SUPABASE_URL}/rest/v1/donations?member_id=eq.${mid}&select=*&order=created_at.desc`,         { headers: sbHeaders }),
+    fetch(`https://admin.memberstack.com/members/${member_id}`, { headers: { "x-api-key": env.MEMBERSTACK_KEY } }),
+  ]);
+
+  if (!profileRes.ok) {
+    const err = await profileRes.text();
+    throw new Error(`Supabase member_profiles error (${profileRes.status}): ${err}`);
+  }
+
+  const [profiles, questionnaires, rsvps, donations] = await Promise.all([
+    profileRes.json(),
+    questionnaireRes.ok ? questionnaireRes.json() : Promise.resolve([]),
+    rsvpsRes.ok        ? rsvpsRes.json()          : Promise.resolve([]),
+    donationsRes.ok    ? donationsRes.json()       : Promise.resolve([]),
+  ]);
+
+  const profile      = profiles[0]        || {};
+  const questionnaire = questionnaires[0] || {};
+
+  let plan_name = [];
+  if (msRes.ok) {
+    const msData = await msRes.json();
+    const connections = msData?.data?.planConnections || [];
+    plan_name = connections.map(c => ({
+      planName: c.plan?.name || "",
+      status:   (c.payment?.status || c.status || "").toLowerCase(),
+    }));
+  } else {
+    console.warn(`[MEMBER] Memberstack GET member failed: ${msRes.status}`);
+  }
+
+  return {
+    ...profile,
+    member_profile: profile.id || "",
+    plan_name,
+    questionnaire,
+    rsvps:     rsvps     || [],
+    donations: donations || [],
+  };
+}
+
 // ─── Route map: path → Make webhook URL ──────────────────────────────────────
 const ROUTES = {
   // Member
-  "/member-profile":          "https://hook.us2.make.com/61m00px6799vvuyps3sgdpmdw764bol8",
   "/member-profile-update":   "https://hook.us2.make.com/ka8clte187yfbfdmajbnnl9xoi9uglw8",
   "/member-list-events":      "https://hook.us2.make.com/cjnt68kf5macv3f31n36p9ota9g2v5c8",
   "/member-rsvp":             "https://hook.us2.make.com/qwqc5knm9vyb7ecb27eotq7ed2fs219h",
@@ -242,6 +296,33 @@ export default {
       try {
         await handleQuestionnaireSupabase(payload, env);
         return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      }
+    }
+
+    // Member profile (Supabase direct)
+    if (path === "/member-profile") {
+      if (!env.SUPABASE_KEY || !env.MEMBERSTACK_KEY) {
+        console.error("SUPABASE_KEY or MEMBERSTACK_KEY secret is not set");
+        return new Response("Server misconfiguration", { status: 500 });
+      }
+      let payload;
+      try {
+        payload = await request.json();
+      } catch {
+        return new Response("Bad request", { status: 400 });
+      }
+      try {
+        const data = await handleMemberProfileSupabase(payload, env);
+        return new Response(JSON.stringify(data), {
           status: 200,
           headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
         });
