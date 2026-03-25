@@ -187,7 +187,14 @@ async function handleWebflowEventSync(request, env) {
     });
   }
 
-  // Create or update — upsert
+  // Only sync on publish
+  if (triggerType !== "collection_item_published") {
+    return new Response(JSON.stringify({ ok: true, action: "ignored" }), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Upsert on publish
   const data = {
     event_id:          itemId,
     event_name:        fields["name"]              || null,
