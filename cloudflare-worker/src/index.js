@@ -105,6 +105,83 @@ async function addMemberstackPlan(memberId, env) {
   }
 }
 
+async function handleWebflowEventSync(request, env) {
+  const secret = request.headers.get("x-webhook-secret");
+  if (!secret || secret !== env.WEBFLOW_WEBHOOK_SECRET) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return new Response("Bad request", { status: 400 });
+  }
+
+  const triggerType = body.triggerType || "";
+  const item = body.payload || {};
+  const fields = item.fieldData || item; // v2 uses fieldData, v1 puts fields directly
+  const itemId = item.id || item._id;   // native Webflow item ID
+
+  if (!itemId) {
+    return new Response(JSON.stringify({ error: "item id missing" }), {
+      status: 400, headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const sbHeaders = {
+    "apikey":        env.SUPABASE_KEY,
+    "Authorization": `Bearer ${env.SUPABASE_KEY}`,
+    "Content-Type":  "application/json",
+  };
+
+  // Hard delete from Supabase
+  if (triggerType === "collection_item_deleted") {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/events?event_id=eq.${encodeURIComponent(itemId)}`,
+      { method: "DELETE", headers: sbHeaders }
+    );
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Supabase delete error (${res.status}): ${err}`);
+    }
+    console.log(`[WEBFLOW] Event deleted: ${itemId}`);
+    return new Response(JSON.stringify({ ok: true, action: "deleted" }), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Unpublish → mark closed
+  if (triggerType === "collection_item_unpublished") {
+    await supabaseUpsert("events", { event_id: itemId, event_status: "closed" }, "event_id", env.SUPABASE_KEY);
+    console.log(`[WEBFLOW] Event unpublished → closed: ${itemId}`);
+    return new Response(JSON.stringify({ ok: true, action: "closed" }), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Create or update — upsert
+  const data = {
+    event_id:          itemId,
+    event_name:        fields["name"]              || null,
+    event_slug:        fields["slug"]              || null,
+    event_date:        fields["date"]              || null,
+    event_capacity:    fields["capacity"]          ?? null,
+    facilitator_name:  fields["facilitator-name"]  || null,
+    facilitator_email: fields["facilitator-id"]    || null,
+    event_link:        fields["online-event-link"] || null,
+    event_status:      fields["status"]            || null,
+    event_record_id:   fields["evente-record"]     || null,
+  };
+
+  await supabaseUpsert("events", data, "event_id", env.SUPABASE_KEY);
+  console.log(`[WEBFLOW] Event synced: ${data.event_name} (${itemId})`);
+
+  return new Response(JSON.stringify({ ok: true, event_id: itemId }), {
+    status: 200, headers: { "Content-Type": "application/json" },
+  });
+}
+
 async function handleMemberstackAddPlan(request, env) {
   // Verify the request is from Supabase
   const secret = request.headers.get("x-webhook-secret");
@@ -303,6 +380,22 @@ export default {
     // Only POST allowed
     if (request.method !== "POST") {
       return new Response("Method not allowed", { status: 405 });
+    }
+
+    // Webflow CMS → Supabase event sync
+    if (path === "/webflow-event-sync") {
+      if (!env.SUPABASE_KEY || !env.WEBFLOW_WEBHOOK_SECRET) {
+        return new Response("Server misconfiguration", { status: 500 });
+      }
+      try {
+        return await handleWebflowEventSync(request, env);
+      } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Memberstack — called by Supabase webhook on member_profiles INSERT
