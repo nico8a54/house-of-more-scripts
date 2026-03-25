@@ -303,6 +303,12 @@
     function applyViewModeLocking() {
       document.querySelectorAll(".text-area, .selector-wrapper, .checkbox-container")
         .forEach(el => el.classList.add("locked"));
+
+      // Add .filled to all form elements
+      document.querySelectorAll("input, textarea, select, .selector-wrapper, .text-area")
+        .forEach(el => el.classList.add("filled"));
+
+      // Checkboxes: only show filled if checked, hide unchecked
       document.querySelectorAll(".checkbox-container").forEach(container => {
         const checkbox = container.querySelector('input[type="checkbox"]');
         if (!checkbox) return;
@@ -312,10 +318,9 @@
     }
 
     function enterEditModeUI() {
-      document.querySelectorAll(".checkbox-container, .text-area, .selector-wrapper")
-        .forEach(el => el.classList.remove("locked", "hide", "filled"));
-      document.querySelectorAll(".field-text").forEach(el => el.classList.remove("hide", "filled"));
-      document.querySelectorAll(".select-field").forEach(select => select.classList.remove("filled"));
+      // Remove .filled from all form elements
+      document.querySelectorAll("input, textarea, select, .selector-wrapper, .text-area, .checkbox-container, .field-text, .select-field")
+        .forEach(el => el.classList.remove("filled", "locked", "hide"));
     }
 
     function syncFilledUIState() {
