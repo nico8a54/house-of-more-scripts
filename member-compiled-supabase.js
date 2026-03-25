@@ -346,31 +346,53 @@
 
     // Flatten questionnaire keys into top-level data, then render all scalar fields
     const flat = { ...data, ...data.questionnaire };
+
+    function normalizeOption(str) {
+      return String(str).toLowerCase().replace(/-/g, " ").replace(/\s+/g, " ").trim();
+    }
+
     let rendered = 0;
     Object.entries(flat).forEach(([key, value]) => {
       if (Array.isArray(value) || (value !== null && typeof value === "object")) return;
+      if (value === null || value === undefined) return;
+
+      // Checkboxes — found by name attribute, checked via data-option
+      const checkboxes = document.querySelectorAll(`input[type="checkbox"][name="${key}"]`);
+      if (checkboxes.length) {
+        const selected = String(value).split("/").map(normalizeOption);
+        checkboxes.forEach(cb => {
+          cb.checked = selected.includes(normalizeOption(cb.getAttribute("data-option") || ""));
+        });
+        rendered += checkboxes.length;
+        return;
+      }
+
+      // Radios — found by name attribute
+      const radios = document.querySelectorAll(`input[type="radio"][name="${key}"]`);
+      if (radios.length) {
+        radios.forEach(radio => { radio.checked = radio.value === String(value); });
+        rendered += radios.length;
+        return;
+      }
+
+      // Select fields
+      const selectField = document.querySelector(`.select-field[data-field="${key}"]`);
+      if (selectField) {
+        const incoming = String(value).trim().toLowerCase();
+        Array.from(selectField.options).forEach(opt => {
+          if (opt.value.trim().toLowerCase() === incoming) selectField.value = opt.value;
+        });
+        rendered++;
+        return;
+      }
+
+      // Text / input fields
       const els = document.querySelectorAll(`[data-field="${key}"]`);
       els.forEach(el => {
-        // Multi-value string (e.g. "value1 / value2") — check matching [data-option] children
-        if (typeof value === "string" && value.includes(" / ")) {
-          const selected = value.split(" / ").map(v => v.trim());
-          el.querySelectorAll("[data-option]").forEach(opt => {
-            const optVal = opt.getAttribute("data-option");
-            const isMatch = selected.includes(optVal);
-            if (opt.tagName === "INPUT" && opt.type === "checkbox") {
-              opt.checked = isMatch;
-            } else {
-              opt.classList.toggle("is-checked", isMatch);
-            }
-          });
-          rendered++;
-          return;
-        }
-        // Single value
-        if (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT") {
-          el.value = value ?? "";
+        if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+          el.value = value;
         } else {
-          el.textContent = value ?? "";
+          el.textContent = value;
         }
         rendered++;
       });
