@@ -33,7 +33,7 @@ const QUESTIONNAIRE_FIELDS = [
 
 const PROFILE_FIELDS = [
   "first_name", "last_name", "phone",
-  "birthday", "gender", "marital_status",
+  "birthday", "gender", "marital_status", "location",
 ];
 
 const RSVP_FIELDS = [
