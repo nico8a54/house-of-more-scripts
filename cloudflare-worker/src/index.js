@@ -106,7 +106,8 @@ async function addMemberstackPlan(memberId, env) {
 }
 
 async function handleWebflowEventSync(request, env) {
-  const secret = request.headers.get("x-webhook-secret");
+  const reqUrl = new URL(request.url);
+  const secret = reqUrl.searchParams.get("secret");
   if (!secret || secret !== env.WEBFLOW_WEBHOOK_SECRET) {
     return new Response("Unauthorized", { status: 401 });
   }
