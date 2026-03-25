@@ -29,6 +29,11 @@ Secrets set in Worker:
 - `MEMBERSTACK_KEY`
 - `SUPABASE_WEBHOOK_SECRET`
 - `ALLOWED_ORIGIN`
+- `WEBFLOW_SECRET_CREATED`
+- `WEBFLOW_SECRET_CHANGED`
+- `WEBFLOW_SECRET_DELETED`
+- `WEBFLOW_SECRET_PUBLISHED`
+- `WEBFLOW_SECRET_UNPUBLISHED`
 
 CORS allowed origins: `https://www.thehouseofmore.com`, `https://thehouseofmore.com`, `http://localhost:5500`, `http://127.0.0.1:5500`
 
@@ -37,6 +42,14 @@ CORS allowed origins: `https://www.thehouseofmore.com`, `https://thehouseofmore.
 - `POST /member-profile` — fetches profile, questionnaire, rsvps, donations from Supabase + plan connections from Memberstack API in parallel. Returns one merged flat object. Always returns full questionnaire shape (null keys) and skeleton rsvp/donation objects when arrays are empty.
 - `POST /member-profile-update-supabase` — updates `member_profiles` (PATCH) + `member_questionnaire` (UPSERT) from profile form payload. Splits fields using `PROFILE_FIELDS` and `QUESTIONNAIRE_FIELDS` constants.
 - `POST /memberstack-add-plan` — called by Supabase DB webhook on `member_profiles` INSERT → adds `pln_members-5kbh0gjx` to member in Memberstack
+- `POST /webflow-event-sync` — called by Webflow CMS webhooks → syncs Events 2026s collection to Supabase `events` table
+  - Verifies `x-webflow-signature` HMAC-SHA256 per trigger type (5 secrets stored as worker secrets)
+  - `collection_item_published` → upsert into `events` (fires on individual publish AND full site publish)
+  - `collection_item_unpublished` → sets `event_status = "closed"`
+  - `collection_item_deleted` → hard DELETE from `events`
+  - `collection_item_created` / `collection_item_changed` → verified but ignored
+  - Field mapping: Webflow item `id` → `event_id`, `name` → `event_name`, `slug` → `event_slug`, `date` → `event_date`, `capacity` → `event_capacity`, `facilitator-name` → `facilitator_name`, `facilitator-id` → `facilitator_email`, `online-event-link` → `event_link`, `status` → `event_status`, `evente-record` → `event_record_id`
+  - Webflow collection: Events 2026s (`69768dc21072a12ac28003ee`)
 
 ### Make.com routes (still active)
 - `/member-profile-update`, `/member-list-events`, `/member-rsvp`, `/member-messages-load`, `/member-message-action`
