@@ -140,6 +140,7 @@ async function handleWebflowEventSync(request, env) {
   }
 
   const triggerType = body.triggerType || "";
+  console.log(`[WEBFLOW] triggerType="${triggerType}" itemId="${(body.payload?.id || body.payload?._id || "?")}" siteId="${body.site?.id || "?"}"`);
   const secretKey = WEBFLOW_TRIGGER_SECRETS[triggerType];
   const secret = secretKey ? env[secretKey] : null;
 
