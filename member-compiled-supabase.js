@@ -343,6 +343,19 @@
 
     console.log("[MEMBER] --- Donations (" + (data.donations?.length ?? 0) + ") ---");
     (data.donations || []).forEach((d, i) => console.log(`  donation[${i}]:`, d));
+
+    // Flatten questionnaire keys into top-level data, then render all scalar fields
+    const flat = { ...data, ...data.questionnaire };
+    let rendered = 0;
+    Object.entries(flat).forEach(([key, value]) => {
+      if (Array.isArray(value) || (value !== null && typeof value === "object")) return;
+      const els = document.querySelectorAll(`[data-field="${key}"]`);
+      els.forEach(el => {
+        el.textContent = value ?? "";
+        rendered++;
+      });
+    });
+    console.log(`[MEMBER] renderFields — ${rendered} element(s) updated`);
   });
 
 })();
