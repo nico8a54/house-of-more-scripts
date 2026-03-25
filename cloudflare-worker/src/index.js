@@ -322,6 +322,70 @@ export default {
       }
     }
 
+    // Member profile update (Supabase direct)
+    if (path === "/member-profile-update-supabase") {
+      if (!env.SUPABASE_KEY) {
+        return new Response("Server misconfiguration", { status: 500 });
+      }
+      let payload;
+      try { payload = await request.json(); } catch { return new Response("Bad request", { status: 400 }); }
+      const { member_id, ...fields } = payload;
+      if (!member_id) return new Response("member_id required", { status: 400, headers: corsHeaders(origin, env) });
+
+      const sbHeaders = {
+        "apikey":        env.SUPABASE_KEY,
+        "Authorization": `Bearer ${env.SUPABASE_KEY}`,
+        "Content-Type":  "application/json",
+        "Prefer":        "return=minimal",
+      };
+      const mid = encodeURIComponent(member_id);
+
+      try {
+        const profileData = {};
+        for (const key of PROFILE_FIELDS) { if (key in fields) profileData[key] = fields[key]; }
+
+        const questionnaireData = {};
+        for (const key of QUESTIONNAIRE_FIELDS) { if (key in fields) questionnaireData[key] = fields[key]; }
+
+        const tasks = [];
+
+        if (Object.keys(profileData).length) {
+          tasks.push(fetch(`${SUPABASE_URL}/rest/v1/member_profiles?member_id=eq.${mid}`, {
+            method: "PATCH",
+            headers: sbHeaders,
+            body: JSON.stringify(profileData),
+          }));
+        }
+
+        if (Object.keys(questionnaireData).length) {
+          tasks.push(fetch(`${SUPABASE_URL}/rest/v1/member_questionnaire?on_conflict=member_id`, {
+            method: "POST",
+            headers: { ...sbHeaders, "Prefer": "resolution=merge-duplicates,return=minimal" },
+            body: JSON.stringify({ member_id, ...questionnaireData }),
+          }));
+        }
+
+        const results = await Promise.all(tasks);
+        for (const res of results) {
+          if (!res.ok) {
+            const err = await res.text();
+            throw new Error(`Supabase update error (${res.status}): ${err}`);
+          }
+        }
+
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      }
+    }
+
     // Member profile (Supabase direct)
     if (path === "/member-profile") {
       if (!env.SUPABASE_KEY || !env.MEMBERSTACK_KEY) {

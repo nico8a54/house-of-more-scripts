@@ -538,7 +538,7 @@
 
       console.log("[MEMBER] Profile update payload:", payload);
       try {
-        const res = await fetch("https://houseofmore.nico-97c.workers.dev/member-profile-update", {
+        const res = await fetch("https://houseofmore.nico-97c.workers.dev/member-profile-update-supabase", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
