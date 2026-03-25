@@ -36,6 +36,16 @@ const PROFILE_FIELDS = [
   "birthday", "gender", "marital_status",
 ];
 
+const RSVP_FIELDS = [
+  "event_record_id", "rsvp_record_id", "member_email", "member_name",
+  "status", "rating", "review", "booked_at", "cancel_at",
+];
+
+const DONATION_FIELDS = [
+  "member_id", "email", "amount", "type", "status",
+  "receipt_url", "transaction_id", "recurrent_status",
+];
+
 async function supabaseUpsert(table, data, onConflict, key) {
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/${table}?on_conflict=${onConflict}`,
@@ -183,13 +193,16 @@ async function handleMemberProfileSupabase(payload, env) {
     console.warn(`[MEMBER] Memberstack GET member failed: ${msRes.status}`);
   }
 
+  const emptyRsvp     = Object.fromEntries(RSVP_FIELDS.map(k => [k, null]));
+  const emptyDonation = Object.fromEntries(DONATION_FIELDS.map(k => [k, null]));
+
   return {
     ...profile,
     member_profile: profile.id || "",
     plan_name,
     questionnaire,
-    rsvps:     rsvps     || [],
-    donations: donations || [],
+    rsvps:     rsvps.length     ? rsvps     : [emptyRsvp],
+    donations: donations.length ? donations : [emptyDonation],
   };
 }
 
