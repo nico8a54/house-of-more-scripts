@@ -351,7 +351,11 @@
       if (Array.isArray(value) || (value !== null && typeof value === "object")) return;
       const els = document.querySelectorAll(`[data-field="${key}"]`);
       els.forEach(el => {
-        el.textContent = value ?? "";
+        if (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT") {
+          el.value = value ?? "";
+        } else {
+          el.textContent = value ?? "";
+        }
         rendered++;
       });
     });
