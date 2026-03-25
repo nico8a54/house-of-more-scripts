@@ -105,21 +105,47 @@ async function addMemberstackPlan(memberId, env) {
   }
 }
 
+const WEBFLOW_TRIGGER_SECRETS = {
+  "collection_item_created":     "WEBFLOW_SECRET_CREATED",
+  "collection_item_changed":     "WEBFLOW_SECRET_CHANGED",
+  "collection_item_deleted":     "WEBFLOW_SECRET_DELETED",
+  "collection_item_published":   "WEBFLOW_SECRET_PUBLISHED",
+  "collection_item_unpublished": "WEBFLOW_SECRET_UNPUBLISHED",
+};
+
+async function verifyWebflowSignature(rawBody, signature, secret) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw", enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false, ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(rawBody));
+  const computed = Array.from(new Uint8Array(sig))
+    .map(b => b.toString(16).padStart(2, "0")).join("");
+  return computed === signature;
+}
+
 async function handleWebflowEventSync(request, env) {
-  const reqUrl = new URL(request.url);
-  const secret = reqUrl.searchParams.get("secret");
-  if (!secret || secret !== env.WEBFLOW_WEBHOOK_SECRET) {
-    return new Response("Unauthorized", { status: 401 });
-  }
+  const signature = request.headers.get("x-webflow-signature");
+  if (!signature) return new Response("Unauthorized", { status: 401 });
+
+  const rawBody = await request.text();
 
   let body;
   try {
-    body = await request.json();
+    body = JSON.parse(rawBody);
   } catch {
     return new Response("Bad request", { status: 400 });
   }
 
   const triggerType = body.triggerType || "";
+  const secretKey = WEBFLOW_TRIGGER_SECRETS[triggerType];
+  const secret = secretKey ? env[secretKey] : null;
+
+  if (!secret || !(await verifyWebflowSignature(rawBody, signature, secret))) {
+    return new Response("Unauthorized", { status: 401 });
+  }
   const item = body.payload || {};
   const fields = item.fieldData || item; // v2 uses fieldData, v1 puts fields directly
   const itemId = item.id || item._id;   // native Webflow item ID
@@ -385,7 +411,7 @@ export default {
 
     // Webflow CMS → Supabase event sync
     if (path === "/webflow-event-sync") {
-      if (!env.SUPABASE_KEY || !env.WEBFLOW_WEBHOOK_SECRET) {
+      if (!env.SUPABASE_KEY) {
         return new Response("Server misconfiguration", { status: 500 });
       }
       try {
