@@ -168,7 +168,8 @@ async function handleMemberProfileSupabase(payload, env) {
   ]);
 
   const profile      = profiles[0]        || {};
-  const questionnaire = questionnaires[0] || {};
+  const emptyQuestionnaire = Object.fromEntries(QUESTIONNAIRE_FIELDS.map(k => [k, null]));
+  const questionnaire = questionnaires[0] ? { ...emptyQuestionnaire, ...questionnaires[0] } : emptyQuestionnaire;
 
   let plan_name = [];
   if (msRes.ok) {
