@@ -60,11 +60,11 @@ const MEMBERSTACK_PLAN_ID = "pln_members-5kbh0gjx";
 
 async function addMemberstackPlan(memberId, env) {
   const res = await fetch(
-    `https://admin.memberstack.com/members/${memberId}/connections`,
+    `https://admin.memberstack.com/members/${memberId}/add-plan`,
     {
       method: "POST",
       headers: {
-        "X-API-KEY":     env.MEMBERSTACK_KEY,
+        "x-api-key":     env.MEMBERSTACK_KEY,
         "Content-Type":  "application/json",
       },
       body: JSON.stringify({ planId: MEMBERSTACK_PLAN_ID }),
