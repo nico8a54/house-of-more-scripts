@@ -92,6 +92,9 @@ async function addMemberstackPlan(memberId, env) {
 
     const err = await res.text();
 
+    // Member already has this plan — treat as success
+    if (res.status === 400 && err.includes("already-have-plan")) return;
+
     if (res.status === 429 && attempt < MAX_RETRIES) {
       await new Promise(r => setTimeout(r, delay));
       delay *= 2;
