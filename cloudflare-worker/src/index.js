@@ -233,7 +233,7 @@ const ROUTES = {
 // ─── CORS helper ─────────────────────────────────────────────────────────────
 function corsHeaders(origin, env) {
   const allowed = env.ALLOWED_ORIGIN || "https://www.thehouseofmore.com";
-  const allowedOrigins = [allowed, "https://thehouseofmore.com", "http://localhost:5500"];
+  const allowedOrigins = [allowed, "https://thehouseofmore.com", "http://localhost:5500", "http://127.0.0.1:5500"];
 
   const responseOrigin = allowedOrigins.includes(origin) ? origin : allowed;
 
