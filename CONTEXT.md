@@ -119,7 +119,7 @@ Note: `rsvps` and `donations` return a skeleton object with null values when emp
   - Text/inputs: `[data-field="key"]` → `.value` or `.textContent`, adds `.filled`
   - Birthday: converted via `toDateInputValue` before setting
 - View mode: all inputs/textareas/selects/wrappers get `.filled`; `.field-text` already has `.filled` by default in HTML (not touched on load)
-- Edit mode (`#edit-form` click): strips `.filled` from all form elements and `.field-text`
+- Edit mode (`#edit-form` click): strips `.filled` from all form elements and `.field-text`; email field kept `.filled` + `.locked` — members cannot change it
 - Cancel: re-renders from cached `state.data`, restores view mode
 - `updateFacilitatorMenu` — shows `.menu-wrapper.facilitator` if plan includes "facilitator"
 - `updateCancelPlan` — shows `.cancel-plan` if active pay plan exists
@@ -130,5 +130,46 @@ Note: `rsvps` and `donations` return a skeleton object with null values when emp
 - `POST /member-profile-update-supabase`
 - On 200: sets `forceClickProfile` sessionStorage, reloads page
 
-### Next
-- Confirm profile field names in Webflow form match `PROFILE_FIELDS` keys (first_name, last_name, phone, birthday, gender, marital_status, location) — use Preserve Log in DevTools to inspect payload on submit
+---
+
+## Stress Test — stress-test.js
+
+### Files
+- `stress-test.js` — main script (gitignored)
+- `dummy-members.csv` — 500 dummy Memberstack accounts, `hom.dummy001–500@email.com` / `Dummy1234!` (gitignored)
+- `memberstack-export.csv` — Memberstack member export with IDs, used by Phase 0 (gitignored)
+
+### Usage
+```bash
+node stress-test.js --phase 1   # questionnaire wave
+node stress-test.js --phase 2   # profile update wave
+node stress-test.js --phase 3   # admin review (approve 70%, reject 30%)
+node stress-test.js --phase 4   # member activity burst
+node stress-test.js             # all phases
+node stress-test.js --dry-run   # no real requests
+node stress-test.js --fix-plans # add Memberstack plan to all 500, 25/sec throttle
+```
+
+### Phases
+- **Phase 0** (always runs): reads `memberstack-export.csv`, filters `hom.dummy` members → returns `{ id, email }` list
+- **Phase 1**: `POST /questionnaire-supabase` for all 500 — writes `member_profiles` + `member_questionnaire` in Supabase. Fields: `member_id`, `first_name`, `last_name`, `email`, `phone`, `location`, `gender`, `marital_status`, `birthday` + all 12 questionnaire fields. Batches of 20.
+- **Phase 2**: `POST /member-profile-update-supabase` for all 500 — updates profile fields. Batches of 20.
+- **Phase 3**: `POST /admin-approve-member` — approves 70%, rejects 30%. Sequential with 500ms delay.
+- **Phase 4**: Member activity burst — profile fetch, update, RSVP, messages. All concurrent.
+- **--fix-plans**: Calls `/memberstack-add-plan` directly for all 500 members at 25/sec (Memberstack API rate limit). Uses `x-webhook-secret` header. Handles `already-have-plan` as success. Run after Phase 1 to guarantee all members have `pln_members-5kbh0gjx`.
+
+### Supabase webhook + plan assignment — known behavior
+- DB webhook fires on `member_profiles` INSERT only — UPSERT on existing rows = UPDATE = no webhook
+- pg_net `batch_size`: 200 — fires up to 200 outbound HTTP calls per worker cycle
+- Memberstack API rate limit: **25 req/sec** — 500 simultaneous webhook calls always hits this
+- Worker fix (deployed): `addMemberstackPlan()` now retries up to 3x on 429 with 1s/2s/4s backoff; uses `res.text()` instead of `res.json()` (Memberstack returns plain "OK" on success)
+- **Standard flow for stress test**: run Phase 1 → run `--fix-plans` to guarantee 500/500
+
+### Stress test run order (clean slate)
+1. Wipe Supabase tables: `member_profiles`, `member_questionnaire` (and related)
+2. Wipe Memberstack dummy members
+3. Re-import `dummy-members.csv` into Memberstack
+4. Export fresh CSV → save as `memberstack-export.csv`
+5. `node stress-test.js --phase 1`
+6. `node stress-test.js --fix-plans`
+7. Continue with phases 2, 3, 4
