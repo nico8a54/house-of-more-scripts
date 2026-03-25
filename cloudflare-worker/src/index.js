@@ -69,22 +69,37 @@ async function supabaseUpsert(table, data, onConflict, key) {
 const MEMBERSTACK_PLAN_ID = "pln_members-5kbh0gjx";
 
 async function addMemberstackPlan(memberId, env) {
-  const res = await fetch(
-    `https://admin.memberstack.com/members/${memberId}/add-plan`,
-    {
-      method: "POST",
-      headers: {
-        "x-api-key":     env.MEMBERSTACK_KEY,
-        "Content-Type":  "application/json",
-      },
-      body: JSON.stringify({ planId: MEMBERSTACK_PLAN_ID }),
+  const MAX_RETRIES = 3;
+  let delay = 1000;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const res = await fetch(
+      `https://admin.memberstack.com/members/${memberId}/add-plan`,
+      {
+        method: "POST",
+        headers: {
+          "x-api-key":     env.MEMBERSTACK_KEY,
+          "Content-Type":  "application/json",
+        },
+        body: JSON.stringify({ planId: MEMBERSTACK_PLAN_ID }),
+      }
+    );
+
+    if (res.ok) {
+      await res.text(); // Memberstack returns plain "OK", not JSON
+      return;
     }
-  );
-  if (!res.ok) {
+
     const err = await res.text();
+
+    if (res.status === 429 && attempt < MAX_RETRIES) {
+      await new Promise(r => setTimeout(r, delay));
+      delay *= 2;
+      continue;
+    }
+
     throw new Error(`Memberstack add plan error (${res.status}): ${err}`);
   }
-  return res.json();
 }
 
 async function handleMemberstackAddPlan(request, env) {
@@ -110,8 +125,17 @@ async function handleMemberstackAddPlan(request, env) {
     });
   }
 
-  const msRes = await addMemberstackPlan(member_id, env);
-  console.log(`[MEMBERSTACK] Plan ${MEMBERSTACK_PLAN_ID} added to member ${member_id}:`, JSON.stringify(msRes));
+  try {
+    await addMemberstackPlan(member_id, env);
+  } catch (err) {
+    console.error(`[MEMBERSTACK] Failed to add plan to ${member_id}:`, err.message);
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  console.log(`[MEMBERSTACK] Plan ${MEMBERSTACK_PLAN_ID} added to member ${member_id}`);
 
   return new Response(JSON.stringify({ ok: true, member_id }), {
     status: 200,
