@@ -304,8 +304,8 @@
       document.querySelectorAll(".text-area, .selector-wrapper, .checkbox-container")
         .forEach(el => el.classList.add("locked"));
 
-      // Add .filled to all form elements and text fields
-      document.querySelectorAll("input, textarea, select, .selector-wrapper, .text-area, .field-text")
+      // Add .filled to all form elements (.field-text already has it by default in HTML)
+      document.querySelectorAll("input, textarea, select, .selector-wrapper, .text-area")
         .forEach(el => el.classList.add("filled"));
 
       // Checkboxes: only show filled if checked, hide unchecked
@@ -324,10 +324,6 @@
     }
 
     function syncFilledUIState() {
-      document.querySelectorAll(".field-text").forEach(el => {
-        if ((el.textContent || "").trim()) el.classList.add("filled");
-        else el.classList.remove("filled");
-      });
       document.querySelectorAll(".selector-wrapper").forEach(wrapper => {
         if (wrapper.tagName === "INPUT") {
           if (wrapper.value?.trim()) wrapper.classList.add("filled");
