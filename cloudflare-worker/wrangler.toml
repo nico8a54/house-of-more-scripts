@@ -1,0 +1,11 @@
+name = "houseofmore"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+ALLOWED_ORIGIN = "https://www.thehouseofmore.com"
+
+# API key is stored as a secret — never commit the value here.
+# After deploying, run:
+#   npx wrangler secret put MAKE_API_KEY
+# Then enter:  t-RpA75H-nhYK-k
