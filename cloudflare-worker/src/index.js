@@ -37,7 +37,7 @@ const PROFILE_FIELDS = [
 ];
 
 const RSVP_FIELDS = [
-  "event_record_id", "rsvp_record_id", "member_email", "member_name",
+  "event_id", "rsvp_record_id", "member_email", "member_name",
   "status", "rating", "review", "booked_at", "cancel_at",
 ];
 
@@ -165,7 +165,7 @@ async function handleWebflowEventSync(request, env) {
   // Hard delete from Supabase
   if (triggerType === "collection_item_deleted") {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/events?event_id=eq.${encodeURIComponent(itemId)}`,
+      `${SUPABASE_URL}/rest/v1/events?id=eq.${encodeURIComponent(itemId)}`,
       { method: "DELETE", headers: sbHeaders }
     );
     if (!res.ok) {
@@ -180,7 +180,7 @@ async function handleWebflowEventSync(request, env) {
 
   // Unpublish → mark closed
   if (triggerType === "collection_item_unpublished") {
-    await supabaseUpsert("events", { event_id: itemId, event_status: "closed" }, "event_id", env.SUPABASE_KEY);
+    await supabaseUpsert("events", { id: itemId, event_status: "closed" }, "id", env.SUPABASE_KEY);
     console.log(`[WEBFLOW] Event unpublished → closed: ${itemId}`);
     return new Response(JSON.stringify({ ok: true, action: "closed" }), {
       status: 200, headers: { "Content-Type": "application/json" },
@@ -196,7 +196,7 @@ async function handleWebflowEventSync(request, env) {
 
   // Upsert on publish
   const data = {
-    event_id:          itemId,
+    id:                itemId,
     event_name:        fields["name"]              || null,
     event_slug:        fields["slug"]              || null,
     event_date:        fields["date"]              || null,
@@ -205,10 +205,9 @@ async function handleWebflowEventSync(request, env) {
     facilitator_email: fields["facilitator-id"]    || null,
     event_link:        fields["online-event-link"] || null,
     event_status:      fields["status"]            || null,
-    event_record_id:   fields["evente-record"]     || null,
   };
 
-  await supabaseUpsert("events", data, "event_id", env.SUPABASE_KEY);
+  await supabaseUpsert("events", data, "id", env.SUPABASE_KEY);
   console.log(`[WEBFLOW] Event synced: ${data.event_name} (${itemId})`);
 
   return new Response(JSON.stringify({ ok: true, event_id: itemId }), {
