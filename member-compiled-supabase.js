@@ -267,33 +267,206 @@
   });
 
   /*=========================================================
-    SECTION 6 — MEMBER PROFILE FETCH (Supabase)
+    SECTION 6 — MEMBER PROFILE FETCH + RENDER + EDIT UI (Supabase)
     src: member-profile-supabase.js
-    Fetches full member object from /member-profile and logs it
   =========================================================*/
   document.addEventListener("DOMContentLoaded", async () => {
-    const memberIdEl = document.querySelector('[data-ms-member="id"]');
-    if (!memberIdEl) {
-      console.warn("[MEMBER] No [data-ms-member='id'] element found.");
-      return;
+    const ui = {
+      memberIdEl:      document.querySelector('[data-ms-member="id"]'),
+      editBtn:         document.getElementById("edit-form"),
+      cancelBtn:       document.getElementById("cancel-profile-form"),
+      submitWrapper:   document.querySelector(".submit-wrapper"),
+      facilitatorMenu: document.querySelector(".menu-wrapper.facilitator"),
+      profileTabBtn:   document.querySelector(".app-button.profile"),
+    };
+    if (!ui.memberIdEl) { console.warn("[MEMBER] No [data-ms-member='id'] element found."); return; }
+
+    const state = { data: null };
+
+    function show(el) { if (el) el.classList.remove("hide"); }
+    function hide(el) { if (el) el.classList.add("hide"); }
+
+    function normalizeOption(str) {
+      return String(str).toLowerCase().replace(/-/g, " ").replace(/\s+/g, " ").trim();
+    }
+    function toDateInputValue(value) {
+      try { return new Date(value).toISOString().split("T")[0]; }
+      catch (e) { return String(value); }
     }
 
-    // Memberstack sets the text content asynchronously — poll until it's populated
+    function setInitialUI() {
+      hide(ui.facilitatorMenu);
+      hide(ui.cancelBtn);
+      hide(ui.submitWrapper);
+    }
+
+    function applyViewModeLocking() {
+      document.querySelectorAll(".text-area, .selector-wrapper, .checkbox-container")
+        .forEach(el => el.classList.add("locked"));
+      document.querySelectorAll(".checkbox-container").forEach(container => {
+        const checkbox = container.querySelector('input[type="checkbox"]');
+        if (!checkbox) return;
+        if (checkbox.checked) { container.classList.add("filled"); container.classList.remove("hide"); }
+        else { container.classList.remove("filled"); container.classList.add("hide"); }
+      });
+    }
+
+    function enterEditModeUI() {
+      document.querySelectorAll(".checkbox-container, .text-area, .selector-wrapper")
+        .forEach(el => el.classList.remove("locked", "hide", "filled"));
+      document.querySelectorAll(".field-text").forEach(el => el.classList.remove("hide", "filled"));
+      document.querySelectorAll(".select-field").forEach(select => select.classList.remove("filled"));
+    }
+
+    function syncFilledUIState() {
+      document.querySelectorAll(".field-text").forEach(el => {
+        if ((el.textContent || "").trim()) el.classList.add("filled");
+        else el.classList.remove("filled");
+      });
+      document.querySelectorAll(".selector-wrapper").forEach(wrapper => {
+        if (wrapper.tagName === "INPUT") {
+          if (wrapper.value?.trim()) wrapper.classList.add("filled");
+          else wrapper.classList.remove("filled");
+          return;
+        }
+        const select = wrapper.querySelector("select");
+        if (select) {
+          if (select.selectedIndex > 0) wrapper.classList.add("filled");
+          else wrapper.classList.remove("filled");
+          return;
+        }
+        const input = wrapper.querySelector("input");
+        if (input) {
+          if (input.value?.trim()) wrapper.classList.add("filled");
+          else wrapper.classList.remove("filled");
+        }
+      });
+      document.querySelectorAll(".select-field").forEach(select => {
+        const filled = !!(select.value?.trim());
+        select.classList.toggle("filled", filled);
+        select.closest(".selector-wrapper")?.classList.toggle("filled", filled);
+      });
+    }
+
+    const PAY_PLANS = new Set(["advocate","builder","champion","neighbor","partner","patron","supporter","sustainer","visionary"]);
+
+    function updateFacilitatorMenu(data) {
+      hide(ui.facilitatorMenu);
+      if (!ui.facilitatorMenu || !Array.isArray(data?.plan_name)) return;
+      const hasFacilitator = data.plan_name.some(p => String(p?.planName || "").toLowerCase() === "facilitator");
+      if (hasFacilitator) show(ui.facilitatorMenu);
+    }
+
+    function updateCancelPlan(data) {
+      const cancelPlanEl = document.querySelector(".cancel-plan");
+      if (!cancelPlanEl) return;
+      const hasActivePayPlan = Array.isArray(data?.plan_name) && data.plan_name.some(plan => {
+        if (!PAY_PLANS.has(String(plan?.planName || "").toLowerCase())) return false;
+        const status = String(plan?.status || "").toLowerCase();
+        return status !== "canceled" && status !== "cancelled";
+      });
+      cancelPlanEl.classList.toggle("hide", !hasActivePayPlan);
+    }
+
+    function addMemberProfileToEventLinks(data) {
+      if (!data?.member_profile) return;
+      document.querySelectorAll(".button.event-card").forEach(btn => {
+        if (!btn.href) return;
+        try {
+          const url = new URL(btn.href, window.location.origin);
+          url.searchParams.set("member_profile", data.member_profile);
+          btn.href = url.toString();
+        } catch (err) { console.warn("[MEMBER] Invalid event URL:", btn.href); }
+      });
+    }
+
+    function renderFields(data) {
+      const flat = { ...data, ...data.questionnaire };
+      let rendered = 0;
+      Object.entries(flat).forEach(([key, value]) => {
+        if (Array.isArray(value) || (value !== null && typeof value === "object")) return;
+        if (value === null || value === undefined) return;
+
+        const checkboxes = document.querySelectorAll(`input[type="checkbox"][name="${key}"]`);
+        if (checkboxes.length) {
+          const selected = String(value).split("/").map(normalizeOption);
+          checkboxes.forEach(cb => {
+            cb.checked = selected.includes(normalizeOption(cb.getAttribute("data-option") || ""));
+          });
+          rendered += checkboxes.length;
+          return;
+        }
+
+        const radios = document.querySelectorAll(`input[type="radio"][name="${key}"]`);
+        if (radios.length) {
+          radios.forEach(radio => { radio.checked = radio.value === String(value); });
+          rendered += radios.length;
+          return;
+        }
+
+        const selectField = document.querySelector(`.select-field[data-field="${key}"]`);
+        if (selectField) {
+          const incoming = String(value).trim().toLowerCase();
+          Array.from(selectField.options).forEach(opt => {
+            if (opt.value.trim().toLowerCase() === incoming) selectField.value = opt.value;
+          });
+          rendered++;
+          return;
+        }
+
+        let displayValue = key === "birthday" ? toDateInputValue(value) : value;
+        const els = document.querySelectorAll(`[data-field="${key}"]`);
+        els.forEach(el => {
+          if (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT") {
+            el.value = displayValue;
+          } else {
+            el.textContent = displayValue;
+          }
+          el.classList.add("filled");
+          rendered++;
+        });
+      });
+      console.log(`[MEMBER] renderFields — ${rendered} element(s) updated`);
+    }
+
+    function setViewModeButtons() { show(ui.editBtn); hide(ui.cancelBtn); hide(ui.submitWrapper); }
+    function setEditModeButtons() { hide(ui.editBtn); show(ui.cancelBtn); show(ui.submitWrapper); }
+
+    function onCancel() {
+      setViewModeButtons();
+      renderFields(state.data);
+      syncFilledUIState();
+      if (ui.profileTabBtn) ui.profileTabBtn.click();
+    }
+
+    function bindLiveCheckboxFill() {
+      document.addEventListener("change", e => {
+        if (!e.target.matches('input[type="checkbox"]')) return;
+        const container = e.target.closest(".checkbox-container");
+        if (!container) return;
+        if (e.target.checked) container.classList.add("filled");
+        else container.classList.remove("filled");
+      });
+    }
+
+    function bindButtons() {
+      if (ui.editBtn) ui.editBtn.addEventListener("click", e => { e.preventDefault(); setEditModeButtons(); enterEditModeUI(); });
+      if (ui.cancelBtn) ui.cancelBtn.addEventListener("click", e => { e.preventDefault(); onCancel(); });
+    }
+
+    // Poll for member_id — Memberstack sets it asynchronously
     let tries = 0;
     const memberId = await new Promise(resolve => {
       const timer = setInterval(() => {
         tries++;
-        const val = memberIdEl.textContent.trim();
+        const val = ui.memberIdEl.textContent.trim();
         if (val) { clearInterval(timer); resolve(val); return; }
         if (tries >= 30) { clearInterval(timer); resolve(null); }
       }, 200);
     });
+    if (!memberId) { console.warn("[MEMBER] member_id not found after polling."); return; }
 
-    if (!memberId) {
-      console.warn("[MEMBER] member_id not found after polling.");
-      return;
-    }
-
+    setInitialUI();
     console.log("[MEMBER] member_id:", memberId);
     console.log("[MEMBER] Fetching /member-profile...");
 
@@ -304,13 +477,11 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ member_id: memberId }),
       });
-
       if (!res.ok) {
         const errText = await res.text();
         console.error("[MEMBER] /member-profile error:", res.status, errText);
         return;
       }
-
       data = await res.json();
     } catch (err) {
       console.error("[MEMBER] Fetch failed:", err);
@@ -318,86 +489,72 @@
     }
 
     console.log("[MEMBER] Full profile response:", data);
-    console.log("[MEMBER] --- Profile fields ---");
-    console.log("  id:", data.id);
-    console.log("  member_id:", data.member_id);
-    console.log("  email:", data.email);
-    console.log("  first_name:", data.first_name);
-    console.log("  last_name:", data.last_name);
-    console.log("  phone:", data.phone);
-    console.log("  birthday:", data.birthday);
-    console.log("  gender:", data.gender);
-    console.log("  marital_status:", data.marital_status);
-    console.log("  application_status:", data.application_status);
-    console.log("  date_of_request:", data.date_of_request);
-    console.log("  approved_date:", data.approved_date);
+    state.data = data;
 
-    console.log("[MEMBER] --- Plan ---");
-    console.log("  plan_name:", data.plan_name);
+    updateFacilitatorMenu(data);
+    updateCancelPlan(data);
+    addMemberProfileToEventLinks(data);
+    renderFields(data);
+    applyViewModeLocking();
+    syncFilledUIState();
+    bindButtons();
+    bindLiveCheckboxFill();
+    setViewModeButtons();
+  });
 
-    console.log("[MEMBER] --- Questionnaire ---");
-    console.log("  questionnaire:", data.questionnaire);
+  /*=========================================================
+    SECTION 7 — PROFILE FORM SUBMIT
+    src: fetch-update-profile.js
+  =========================================================*/
+  document.addEventListener("DOMContentLoaded", () => {
+    const form = document.getElementById("profile-form");
+    const submitBtn = document.getElementById("submit-form");
+    const memberIdEl = document.querySelector('[data-ms-member="id"]');
+    if (!form || !submitBtn || !memberIdEl) return;
+    const memberId = memberIdEl.textContent.trim();
+    if (!memberId) return;
 
-    console.log("[MEMBER] --- RSVPs (" + (data.rsvps?.length ?? 0) + ") ---");
-    (data.rsvps || []).forEach((r, i) => console.log(`  rsvp[${i}]:`, r));
+    submitBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      submitBtn.disabled = true;
+      const payload = { member_id: memberId };
 
-    console.log("[MEMBER] --- Donations (" + (data.donations?.length ?? 0) + ") ---");
-    (data.donations || []).forEach((d, i) => console.log(`  donation[${i}]:`, d));
+      form.querySelectorAll('input:not([type="checkbox"]):not([type="radio"]), select, textarea')
+        .forEach(field => { if (field.name) payload[field.name] = field.value; });
 
-    // Flatten questionnaire keys into top-level data, then render all scalar fields
-    const flat = { ...data, ...data.questionnaire };
+      form.querySelectorAll('input[type="radio"]:checked')
+        .forEach(radio => { if (radio.name) payload[radio.name] = radio.value; });
 
-    function normalizeOption(str) {
-      return String(str).toLowerCase().replace(/-/g, " ").replace(/\s+/g, " ").trim();
-    }
-
-    let rendered = 0;
-    Object.entries(flat).forEach(([key, value]) => {
-      if (Array.isArray(value) || (value !== null && typeof value === "object")) return;
-      if (value === null || value === undefined) return;
-
-      // Checkboxes — found by name attribute, checked via data-option
-      const checkboxes = document.querySelectorAll(`input[type="checkbox"][name="${key}"]`);
-      if (checkboxes.length) {
-        const selected = String(value).split("/").map(normalizeOption);
-        checkboxes.forEach(cb => {
-          cb.checked = selected.includes(normalizeOption(cb.getAttribute("data-option") || ""));
-        });
-        rendered += checkboxes.length;
-        return;
-      }
-
-      // Radios — found by name attribute
-      const radios = document.querySelectorAll(`input[type="radio"][name="${key}"]`);
-      if (radios.length) {
-        radios.forEach(radio => { radio.checked = radio.value === String(value); });
-        rendered += radios.length;
-        return;
-      }
-
-      // Select fields
-      const selectField = document.querySelector(`.select-field[data-field="${key}"]`);
-      if (selectField) {
-        const incoming = String(value).trim().toLowerCase();
-        Array.from(selectField.options).forEach(opt => {
-          if (opt.value.trim().toLowerCase() === incoming) selectField.value = opt.value;
-        });
-        rendered++;
-        return;
-      }
-
-      // Text / input fields
-      const els = document.querySelectorAll(`[data-field="${key}"]`);
-      els.forEach(el => {
-        if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
-          el.value = value;
-        } else {
-          el.textContent = value;
-        }
-        rendered++;
+      const checkboxGroups = {};
+      form.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        if (!cb.name || !cb.checked) return;
+        const option = cb.getAttribute("data-option");
+        if (!option) return;
+        if (!checkboxGroups[cb.name]) checkboxGroups[cb.name] = [];
+        checkboxGroups[cb.name].push(option);
       });
+      Object.entries(checkboxGroups).forEach(([key, values]) => { payload[key] = values.join(" / "); });
+
+      console.log("[MEMBER] Profile update payload:", payload);
+      try {
+        const res = await fetch("https://houseofmore.nico-97c.workers.dev/member-profile-update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        console.log("[MEMBER] Profile update status:", res.status);
+        if (res.status === 200) {
+          sessionStorage.setItem("forceClickProfile", "true");
+          window.location.reload();
+        } else {
+          submitBtn.disabled = false;
+          console.error("[MEMBER] Profile update returned non-200");
+        }
+      } catch (err) {
+        submitBtn.disabled = false;
+        console.error("[MEMBER] Profile update error:", err);
+      }
     });
-    console.log(`[MEMBER] renderFields — ${rendered} element(s) updated`);
   });
 
 })();
