@@ -80,19 +80,23 @@ async function addMemberstackPlan(memberId, env) {
 async function handleMemberstackAddPlan(request, env) {
   // Verify the request is from Supabase
   const secret = request.headers.get("x-webhook-secret");
+  console.log(`[MEMBERSTACK] secret received: "${secret}" | expected: "${env.SUPABASE_WEBHOOK_SECRET}"`);
   if (!secret || secret !== env.SUPABASE_WEBHOOK_SECRET) {
+    console.error("[MEMBERSTACK] Unauthorized — secret mismatch");
     return new Response("Unauthorized", { status: 401 });
   }
 
   let payload;
   try {
     payload = await request.json();
+    console.log("[MEMBERSTACK] payload:", JSON.stringify(payload));
   } catch {
     return new Response("Bad request", { status: 400 });
   }
 
   // Supabase sends the row under payload.record
   const member_id = payload?.record?.member_id;
+  console.log(`[MEMBERSTACK] member_id: "${member_id}"`);
   if (!member_id) {
     return new Response(JSON.stringify({ error: "member_id missing from record" }), {
       status: 400,
@@ -100,8 +104,8 @@ async function handleMemberstackAddPlan(request, env) {
     });
   }
 
-  await addMemberstackPlan(member_id, env);
-  console.log(`[MEMBERSTACK] Plan ${MEMBERSTACK_PLAN_ID} added to member ${member_id}`);
+  const msRes = await addMemberstackPlan(member_id, env);
+  console.log(`[MEMBERSTACK] Plan ${MEMBERSTACK_PLAN_ID} added to member ${member_id}:`, JSON.stringify(msRes));
 
   return new Response(JSON.stringify({ ok: true, member_id }), {
     status: 200,
