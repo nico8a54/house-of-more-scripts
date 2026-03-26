@@ -433,7 +433,7 @@
       const memberEmail = (data?.email || "").trim().toLowerCase();
       document.querySelectorAll(".facilitator-event").forEach(card => {
         if (!isFacilitator) { card.classList.add("hide"); return; }
-        const emailEl = card.querySelector(".event-facilitator-email");
+        const emailEl = card.querySelector(".facilitator-email");
         const facilitatorEmail = (emailEl?.textContent || "").trim().toLowerCase();
         card.classList.toggle("hide", facilitatorEmail !== memberEmail);
       });
