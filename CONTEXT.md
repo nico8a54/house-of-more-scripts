@@ -46,7 +46,7 @@ CORS allowed origins: `https://www.thehouseofmore.com`, `https://thehouseofmore.
 - `POST /member-profile` — fetches profile, questionnaire, rsvps, donations from Supabase + plan connections from Memberstack API in parallel. Returns one merged flat object. Always returns full questionnaire shape (null keys) and skeleton rsvp/donation objects when arrays are empty.
 - `POST /member-profile-update-supabase` — updates `member_profiles` (PATCH) + `member_questionnaire` (UPSERT) from profile form payload. Splits fields using `PROFILE_FIELDS` and `QUESTIONNAIRE_FIELDS` constants.
 - `POST /memberstack-add-plan` — called by Supabase DB webhook on `member_profiles` INSERT → adds `pln_members-5kbh0gjx` to member in Memberstack
-- `POST /event-data` — fetches event from `events_with_capacity` view by `event_slug` + RSVPs (with embedded `member_profiles`: first_name, last_name, email, member_id) + member plan info from Memberstack (if `member_id` passed). Returns `{ event, rsvps, current_capacity, member }`.
+- `POST /event-data` — fetches event from `events_with_capacity` view by `event_slug` + member plan info from Memberstack in parallel. RSVPs (with embedded `member_profiles`: first_name, last_name, email, member_id) only fetched and returned if member has admin or facilitator plan. Returns `{ event, rsvps, current_capacity, member }`.
 - `POST /member-rsvp-supabase` — handles RSVP booking, cancel, waiting-list for members. Writes `member` boolean to `event_rsvps`.
 - ~~`POST /webflow-event-sync`~~ — removed from Worker, replaced by Supabase Edge Function below
 
@@ -157,11 +157,11 @@ Note: `member` is `null` if no `member_id` passed (non-logged-in visitors).
   "location": "...",
   "plan_name": [{ "planId": "pln_approved-member-bd2jv0hp1", "planName": "", "status": "active", "type": "free" }],
   "questionnaire": { "where_are_you_on_your_path": "...", ... all 12 keys always present },
-  "rsvps": [{ "event_id": "69b9a60b...", "booking_status": "booked", ... }],
+  "rsvps": [{ "event_id": "69b9a60b...", "booking_status": "booked", "event_slug": "my-event-slug", ... }],
   "donations": [{ "amount": 5000, "type": "one-time", ... }]
 }
 ```
-Note: `rsvps` and `donations` return a skeleton object with null values when empty so field shape is always visible.
+Note: `rsvps` and `donations` return a skeleton object with null values when empty so field shape is always visible. Each RSVP includes `event_slug` (joined from `events` table) for My Events filtering.
 
 ---
 
@@ -186,9 +186,15 @@ Note: `rsvps` and `donations` return a skeleton object with null values when emp
 - View mode: all inputs/textareas/selects/wrappers get `.filled`; `.field-text` already has `.filled` by default in HTML (not touched on load)
 - Edit mode (`#edit-form` click): strips `.filled` from all form elements and `.field-text`; email field kept `.filled` + `.locked` — members cannot change it
 - Cancel: re-renders from cached `state.data`, restores view mode
-- `updateFacilitatorMenu` — shows `.menu-wrapper.facilitator` if plan includes "facilitator"
+- `updateFacilitatorMenu` — shows `.menu-wrapper.facilitator` if plan `planId === "pln_facilitator-9o1kw0j5o"`
 - `updateCancelPlan` — shows `.cancel-plan` if active pay plan exists
-- `addMemberProfileToEventLinks` — appends `?member_profile=uuid` to `.button.event-card` hrefs (uses `data.id` from member_profiles)
+- `filterMyEvents(data)` — filters `.event-card-wrapper.my-event` cards by RSVP data:
+  - Shows only booked and canceled RSVPs; hides non-RSVP cards
+  - Matches cards by slug extracted from `.button.event-card` href vs `rsvp.event_slug`
+  - Past events (date < today from `[data-event-time]`) hidden by default; toggled by `#past-events` / `#upcoming-events` buttons
+  - Booked: appends `?booked=true` to card link href
+  - Canceled: adds `.canceled` to wrapper, updates `.tag-booked` text, hides card link button
+- `applyEventDateFilter(type)` — shows/hides cards with `.past-event` / `.upcoming-event` classes
 
 ### Section 7 — Profile form submit
 - Collects all inputs/selects/textareas by `name`, radios (checked), checkboxes (grouped + joined with ` / `)
@@ -209,21 +215,23 @@ Note: `rsvps` and `donations` return a skeleton object with null values when emp
 
 ### Section 3 — Initial fetch (Supabase)
 - `POST /event-data` with `{ event_slug, member_id }` on `DOMContentLoaded`
+- Stores `state.event_id = result.event?.id` for use in RSVP confirm
 - Logs: `[EVENT] Supabase response:` + `[EVENT] current_capacity:`
 - **Capacity tag** (`#capacity-tag`): "Sold Out" if ≤ 0, "Only N Left" if ≤ 5, hidden otherwise
 - **Spots** (`#spots-available`): sets textContent to capacity
-- **Admin plan check**: if member has `pln_admin-1823l09h8` → removes `.hide` from all `.event-info-wrapper`
-- **Attendants list**: clones `.attendants-row` template (appends to its `parentElement`) for each RSVP where status is booked/canceled/checked/no-show
+- **Privileged plan check** (`isPrivileged`): admin (`pln_admin-1823l09h8`) or facilitator (`pln_facilitator-9o1kw0j5o`) → removes `.hide` from all `.event-info-wrapper`, hides `#rsvp`
+- **Attendants list**: only rendered for privileged members (worker gates the data). Clones `.attendants-row` template (appends to its `parentElement`) for each RSVP where status is booked/canceled/checked/no-show
   - Sorted: checked → booked → canceled → no-show
-  - Renders: `first_name`, `email`, `id` (RSVP uuid), `booking_status`, `member` (yes/no)
+  - Renders: `first_name` (full name — first + last), `email`, `id` (RSVP uuid), `booking_status`, `member` (yes/no)
   - Shows `.check` element for `booking_status === "checked"`
-- **Reviews list**: clones `.review-container` template, appends to its `parentElement`, for each RSVP where `review` is not null
-  - Renders: `first_name`, `last_name`, `email`, `member_id`, `rating`, `review`, `booking_status`
-- **RSVP button state**: hides if admin/event-manager or capacity ≤ -5; sets text to Cancel/Waiting List/RSVP
+- **Reviews list**: only rendered for privileged members. Clones `.review-container` template, appends to its `parentElement`, for each RSVP where `review` is not null
+  - Renders: `first_name` (full name), `email`, `member_id`, `rating` (★ filled + ☆ empty = always 5 stars), `review`, `booking_status`
+- **RSVP button state**: hides if admin/event-manager/privileged or capacity ≤ -5; sets text to Cancel/Waiting List/RSVP
 
 ### Section 4 — RSVP flow
-- Modal open/close, confirm → `POST /member-rsvp-supabase`
+- Modal open/close, confirm → `POST /member-rsvp-supabase` with `{ event_slug, member_id, status }`
 - Non-member booking form → `POST /member-rsvp-supabase` with `member: false`
+- Answer modal shows response message on success
 - Cancel answer modal → `sessionStorage.triggerMyEvents = true` + `history.back()`
 
 ### Section 5 — QR check-in scanner
