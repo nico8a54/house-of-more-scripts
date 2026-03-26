@@ -152,8 +152,8 @@
 
     // Render reviews list
     const reviewTemplate = document.querySelector(".review-row");
-    if (reviewTemplate && result.rsvps?.length) {
-      const reviewContainer = reviewTemplate.parentElement;
+    const reviewContainer = document.querySelector(".review-container");
+    if (reviewTemplate && reviewContainer && result.rsvps?.length) {
       reviewTemplate.classList.add("hide");
       result.rsvps.filter(r => r.review).forEach(rsvp => {
         const row = reviewTemplate.cloneNode(true);
