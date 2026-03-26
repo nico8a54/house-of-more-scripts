@@ -2,7 +2,8 @@
 
 ## Project
 Custom member platform for **The House of More** (`thehouseofmore.com`).
-Stack: Webflow + Memberstack + Make.com + Cloudflare Workers + Supabase + custom JS.
+Stack: Webflow + Memberstack + Cloudflare Workers + Supabase + custom JS.
+Note: Make.com is being phased out — all routes moving to direct Supabase via Cloudflare Worker.
 
 ---
 
@@ -24,7 +25,7 @@ URL: `https://houseofmore.nico-97c.workers.dev`
 Auto-deploys from GitHub → `cloudflare-worker/` folder via Cloudflare native Git integration.
 
 Secrets set in Worker:
-- `MAKE_API_KEY`
+- `MAKE_API_KEY` (legacy — kept while Make.com routes still exist)
 - `SUPABASE_KEY`
 - `MEMBERSTACK_KEY`
 - `SUPABASE_WEBHOOK_SECRET`
@@ -34,6 +35,7 @@ Secrets set in Worker:
 - `WEBFLOW_SECRET_DELETED`
 - `WEBFLOW_SECRET_PUBLISHED`
 - `WEBFLOW_SECRET_UNPUBLISHED`
+- `WEBFLOW_WEBHOOK_SECRET` (legacy — old single-secret approach, kept but unused)
 
 CORS allowed origins: `https://www.thehouseofmore.com`, `https://thehouseofmore.com`, `http://localhost:5500`, `http://127.0.0.1:5500`
 
@@ -42,16 +44,9 @@ CORS allowed origins: `https://www.thehouseofmore.com`, `https://thehouseofmore.
 - `POST /member-profile` — fetches profile, questionnaire, rsvps, donations from Supabase + plan connections from Memberstack API in parallel. Returns one merged flat object. Always returns full questionnaire shape (null keys) and skeleton rsvp/donation objects when arrays are empty.
 - `POST /member-profile-update-supabase` — updates `member_profiles` (PATCH) + `member_questionnaire` (UPSERT) from profile form payload. Splits fields using `PROFILE_FIELDS` and `QUESTIONNAIRE_FIELDS` constants.
 - `POST /memberstack-add-plan` — called by Supabase DB webhook on `member_profiles` INSERT → adds `pln_members-5kbh0gjx` to member in Memberstack
-- `POST /webflow-event-sync` — called by Webflow CMS webhooks → syncs Events 2026s collection to Supabase `events` table
-  - Verifies `x-webflow-signature` HMAC-SHA256 per trigger type (5 secrets stored as worker secrets)
-  - `collection_item_published` → upsert into `events` (fires on individual publish AND full site publish)
-  - `collection_item_unpublished` → sets `event_status = "closed"`
-  - `collection_item_deleted` → hard DELETE from `events`
-  - `collection_item_created` / `collection_item_changed` → verified but ignored
-  - Field mapping: Webflow item `id` → `event_id`, `name` → `event_name`, `slug` → `event_slug`, `date` → `event_date`, `capacity` → `event_capacity`, `facilitator-name` → `facilitator_name`, `facilitator-id` → `facilitator_email`, `online-event-link` → `event_link`, `status` → `event_status`, `evente-record` → `event_record_id`
-  - Webflow collection: Events 2026s (`69768dc21072a12ac28003ee`)
+- ~~`POST /webflow-event-sync`~~ — removed from Worker, replaced by Supabase Edge Function below
 
-### Make.com routes (still active)
+### Make.com routes (legacy — being phased out)
 - `/member-profile-update`, `/member-list-events`, `/member-rsvp`, `/member-messages-load`, `/member-message-action`
 - `/facilitator-list-events`, `/facilitator-checkin`, `/facilitator-close-event`
 - `/admin-list-members`, `/admin-get-member`, `/admin-approve-member`, `/admin-list-rsvp`, `/admin-list-event`, `/admin-messages`, `/admin-message-center`
@@ -64,16 +59,41 @@ CORS allowed origins: `https://www.thehouseofmore.com`, `https://thehouseofmore.
 URL: `https://wioktwzioxzgmntgxsme.supabase.co`
 
 ### Tables & key columns
-- `member_profiles` — id (uuid), member_id, email, first_name, last_name, phone, birthday, gender, marital_status, application_status, date_of_request, approved_date, location
+- `member_profiles` — id (uuid), member_id, email, first_name, last_name, phone, birthday, gender, marital_status, application_status, date_of_request, approved_date, location, created_at, updated_at
 - `member_questionnaire` — id, member_id, where_are_you_on_your_path, how_can_we_support_you, how_did_you_hear_about_the_house_of_more, have_you_been_with_the_house_of_more, how_many_events_have_you_attended_at_the_hom, how_many_events_per_month_can_you_participate, what_draws_you_to_the_house_of_more, community_and_contribution, is_there_anything_else, do_you_feel_aligned_with_the_house_of_more, i_commit_to_respecting_the_house_of_more (bool), skills_to_share
-- `event_rsvps` — id, event_record_id, member_id, rsvp_record_id, member_email, member_name, status, rating, review, booked_at, cancel_at
+- `event_rsvps` — id (uuid), member_id, event_id (text FK → events.id), booking_status, rating, review, booked_at, cancel_at, created_at, updated_at
 - `donations` — id, member_id, email, amount (int, cents), type, status, receipt_url, transaction_id, recurrent_status
 - `messages` — id, message_record_id, member_id, subject, body, read (bool), erased (bool), sent_by, sent_at
-- `events` — id, event_id, event_record_id, event_name, event_date, event_status, event_capacity, facilitator_name, facilitator_email, event_link, event_slug
+- `events` — id (text PK = Webflow item ID), event_name, event_date, event_status, event_capacity (int), current_capacity (int, nullable — for Webflow display use), facilitator_name, facilitator_email, event_link, event_slug, event_location, event_category (text), event_gender (text), event_duration (numeric — decimal hours e.g. 0.5, 1, 2), event_video_link, created_at, updated_at
+- `events_with_capacity` (view) — all events columns + event_current_capacity, booked_count, canceled_count, waitlist_count (joins event_rsvps on event_rsvps.event_id = events.id)
 
 ### Field constants (in worker)
 - `PROFILE_FIELDS` — first_name, last_name, phone, birthday, gender, marital_status, location
 - `QUESTIONNAIRE_FIELDS` — all 12 questionnaire columns including skills_to_share
+
+### Edge Functions
+- `webflow-event-sync` — `https://wioktwzioxzgmntgxsme.supabase.co/functions/v1/webflow-event-sync`
+  - Receives Webflow CMS webhooks → syncs `events` table
+  - `collection_item_published` → iterates `payload.items[]`, upserts each into `events` on conflict `id`
+  - `collection_item_unpublished` → sets `event_status = "closed"` via upsert
+  - `collection_item_deleted` → hard DELETE by `id`
+  - `collection_item_created` / `collection_item_changed` → ignored (200)
+  - ⚠️ Signature verification disabled — secrets stored in Edge Function don't match Webflow webhook registration. All 5 triggers return 401 when verification is enabled. Low priority — endpoint is not publicly discoverable and only handles low-stakes event data.
+  - Field mapping (Webflow slug → Supabase column):
+    - `name` → `event_name`, `slug` → `event_slug`, `date` → `event_date`
+    - `capacity` → `event_capacity`, `status` → `event_status`, `location` → `event_location`
+    - `facilitator-name` → `facilitator_name`, `facilitator-id` → `facilitator_email` (slug ≠ display name)
+    - `online-event-link` → `event_link`
+    - `duration-in-hours` → `event_duration` (numeric; Webflow slug ≠ display name "duration")
+    - `category` → `event_category` (Option field — IDs resolved to labels via hardcoded map)
+    - `gender` → `event_gender` (Option field — IDs resolved to labels via hardcoded map)
+  - Option label maps hardcoded in edge function:
+    - Category: Gathering, Workshop, Ceremonies & Retreats
+    - Gender: Male Only, Female Only, Male and Female, Couples
+  - ⚠️ When adding new Webflow fields: if the item was already published before the field was added, Webflow won't include the new field in the webhook payload. Must open item, edit, save, then publish to force full fieldData in payload.
+  - Webflow webhooks (5 triggers) point to this URL — secrets `WEBFLOW_SECRET_*` stored in Edge Function secrets (unused until sig verification is fixed)
+  - Webflow collection: Events 2026s (`69768dc21072a12ac28003ee`)
+  - **Verified working end-to-end March 26 2026**
 
 ### Database Webhook
 - Table: `member_profiles` — Event: INSERT
@@ -96,7 +116,6 @@ Member ID format: `mem_...`
 ```json
 {
   "id": "uuid",
-  "member_profile": "uuid",
   "member_id": "mem_...",
   "email": "...",
   "first_name": "...", "last_name": "...", "phone": "...",
@@ -105,7 +124,7 @@ Member ID format: `mem_...`
   "location": "...",
   "plan_name": [{ "planName": "Members", "status": "active" }],
   "questionnaire": { "where_are_you_on_your_path": "...", ... all 12 keys always present },
-  "rsvps": [{ "event_record_id": "...", "status": "booked", ... }],
+  "rsvps": [{ "event_id": "69b9a60b...", "booking_status": "booked", ... }],
   "donations": [{ "amount": 5000, "type": "one-time", ... }]
 }
 ```
@@ -123,7 +142,7 @@ Note: `rsvps` and `donations` return a skeleton object with null values when emp
 5. Calendar view — month grid, popover on hover, list/calendar toggle
 
 ### Section 6 — Member profile fetch + render + edit UI (Supabase)
-- Polls `[data-ms-member="id"]` for member_id (Memberstack async)
+- Reads `[data-ms-member="id"]` directly for member_id — Memberstack populates it synchronously at DOM load, no polling needed. Element must be present in the DOM (can be hidden).
 - `POST /member-profile` → full merged object
 - `renderFields(data)` — flattens `questionnaire` into top-level, then:
   - Checkboxes: `input[type="checkbox"][name="key"]` → checks via `data-option` + `normalizeOption`
@@ -136,7 +155,7 @@ Note: `rsvps` and `donations` return a skeleton object with null values when emp
 - Cancel: re-renders from cached `state.data`, restores view mode
 - `updateFacilitatorMenu` — shows `.menu-wrapper.facilitator` if plan includes "facilitator"
 - `updateCancelPlan` — shows `.cancel-plan` if active pay plan exists
-- `addMemberProfileToEventLinks` — appends `?member_profile=uuid` to `.button.event-card` hrefs
+- `addMemberProfileToEventLinks` — appends `?member_profile=uuid` to `.button.event-card` hrefs (uses `data.id` from member_profiles)
 
 ### Section 7 — Profile form submit
 - Collects all inputs/selects/textareas by `name`, radios (checked), checkboxes (grouped + joined with ` / `)

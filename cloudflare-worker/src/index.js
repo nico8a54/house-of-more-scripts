@@ -37,8 +37,8 @@ const PROFILE_FIELDS = [
 ];
 
 const RSVP_FIELDS = [
-  "event_id", "rsvp_record_id", "member_email", "member_name",
-  "status", "rating", "review", "booked_at", "cancel_at",
+  "id", "member_id", "event_id", "booking_status",
+  "rating", "review", "booked_at", "cancel_at", "created_at", "updated_at",
 ];
 
 const DONATION_FIELDS = [
@@ -336,12 +336,124 @@ async function handleMemberProfileSupabase(payload, env) {
 
   return {
     ...profile,
-    member_profile: profile.id || "",
     plan_name,
     questionnaire,
     rsvps:     rsvps.length     ? rsvps     : [emptyRsvp],
     donations: donations.length ? donations : [emptyDonation],
   };
+}
+
+async function handleEventData(payload, env) {
+  const { event_slug } = payload;
+  if (!event_slug) throw new Error("event_slug is required");
+
+  const sbHeaders = {
+    "apikey":        env.SUPABASE_KEY,
+    "Authorization": `Bearer ${env.SUPABASE_KEY}`,
+  };
+
+  const slug = encodeURIComponent(event_slug);
+
+  const eventRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/events_with_capacity?event_slug=eq.${slug}&select=*`,
+    { headers: sbHeaders }
+  );
+  if (!eventRes.ok) {
+    const err = await eventRes.text();
+    throw new Error(`Supabase events error (${eventRes.status}): ${err}`);
+  }
+
+  const events = await eventRes.json();
+  const event = events[0];
+  if (!event) throw new Error("Event not found");
+
+  const eventId = encodeURIComponent(event.id);
+  const rsvpsRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/event_rsvps?event_id=eq.${eventId}&select=*&order=booked_at.asc`,
+    { headers: sbHeaders }
+  );
+  const rsvps = rsvpsRes.ok ? await rsvpsRes.json() : [];
+
+  return { event, rsvps, current_capacity: event.event_current_capacity ?? 0 };
+}
+
+async function handleMemberRsvpSupabase(payload, env) {
+  const { event_slug, member_id, member_email, member_name, status } = payload;
+  if (!event_slug || !member_id) throw new Error("event_slug and member_id are required");
+
+  const sbHeaders = {
+    "apikey":        env.SUPABASE_KEY,
+    "Authorization": `Bearer ${env.SUPABASE_KEY}`,
+    "Content-Type":  "application/json",
+  };
+
+  const slug = encodeURIComponent(event_slug);
+
+  const eventRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/events_with_capacity?event_slug=eq.${slug}&select=*`,
+    { headers: sbHeaders }
+  );
+  if (!eventRes.ok) throw new Error("Event lookup failed");
+  const events = await eventRes.json();
+  const event = events[0];
+  if (!event) return "Event not found.";
+
+  const eventId = event.id;
+  const mid = encodeURIComponent(member_id);
+  const eid = encodeURIComponent(eventId);
+
+  // Cancel flow
+  if (status === "cancel") {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/event_rsvps?event_id=eq.${eid}&member_id=eq.${mid}`,
+      {
+        method: "PATCH",
+        headers: { ...sbHeaders, "Prefer": "return=minimal" },
+        body: JSON.stringify({ booking_status: "canceled", cancel_at: new Date().toISOString() }),
+      }
+    );
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Cancel failed (${res.status}): ${err}`);
+    }
+    return "You have canceled your attendance for this event.";
+  }
+
+  // Check for existing active RSVP
+  const existingRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/event_rsvps?event_id=eq.${eid}&member_id=eq.${mid}&booking_status=in.(booked,waitlist)&select=id`,
+    { headers: sbHeaders }
+  );
+  if (existingRes.ok) {
+    const existing = await existingRes.json();
+    if (existing.length > 0) return "You have already booked this event.";
+  }
+
+  // Determine booking status based on real capacity
+  const currentCapacity = event.event_current_capacity ?? 0;
+  const rsvpStatus = currentCapacity > 0 ? "booked" : "waitlist";
+
+  const insertRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/event_rsvps`,
+    {
+      method: "POST",
+      headers: { ...sbHeaders, "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        event_id:       eventId,
+        member_id,
+        booking_status: rsvpStatus,
+        booked_at:      new Date().toISOString(),
+      }),
+    }
+  );
+  if (!insertRes.ok) {
+    const err = await insertRes.text();
+    throw new Error(`RSVP insert failed (${insertRes.status}): ${err}`);
+  }
+
+  return rsvpStatus === "waitlist"
+    ? "You have sign up to a waiting list."
+    : "You have successfully booked this event.";
 }
 
 // ─── Route map: path → Make webhook URL ──────────────────────────────────────

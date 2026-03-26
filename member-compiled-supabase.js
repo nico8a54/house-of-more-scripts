@@ -373,12 +373,12 @@
     }
 
     function addMemberProfileToEventLinks(data) {
-      if (!data?.member_profile) return;
+      if (!data?.id) return;
       document.querySelectorAll(".button.event-card").forEach(btn => {
         if (!btn.href) return;
         try {
           const url = new URL(btn.href, window.location.origin);
-          url.searchParams.set("member_profile", data.member_profile);
+          url.searchParams.set("member_profile", data.id);
           btn.href = url.toString();
         } catch (err) { console.warn("[MEMBER] Invalid event URL:", btn.href); }
       });
