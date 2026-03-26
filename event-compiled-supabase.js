@@ -164,7 +164,7 @@
           last_name:      profile.last_name || "",
           email:          profile.email || "",
           member_id:      rsvp.member_id || "",
-          rating:         rsvp.rating ?? "",
+          rating:         "★".repeat(rsvp.rating ?? 0),
           review:         rsvp.review || "",
           booking_status: rsvp.booking_status || "",
         };
