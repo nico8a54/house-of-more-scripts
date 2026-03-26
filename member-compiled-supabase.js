@@ -458,17 +458,8 @@
       if (ui.cancelBtn) ui.cancelBtn.addEventListener("click", e => { e.preventDefault(); onCancel(); });
     }
 
-    // Poll for member_id — Memberstack sets it asynchronously
-    let tries = 0;
-    const memberId = await new Promise(resolve => {
-      const timer = setInterval(() => {
-        tries++;
-        const val = ui.memberIdEl.textContent.trim();
-        if (val) { clearInterval(timer); resolve(val); return; }
-        if (tries >= 30) { clearInterval(timer); resolve(null); }
-      }, 200);
-    });
-    if (!memberId) { console.warn("[MEMBER] member_id not found after polling."); return; }
+    const memberId = ui.memberIdEl.textContent.trim();
+    if (!memberId) { console.warn("[MEMBER] member_id not found."); return; }
 
     setInitialUI();
     console.log("[MEMBER] member_id:", memberId);
