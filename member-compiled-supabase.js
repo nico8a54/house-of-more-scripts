@@ -427,16 +427,15 @@
       if (hasFacilitator) show(ui.facilitatorMenu);
     }
 
-    function filterFacilitatorEvents(memberId, data) {
+    function filterFacilitatorEvents(data) {
       const isFacilitator = Array.isArray(data?.plan_name) &&
         data.plan_name.some(p => p?.planId === "pln_facilitator-9o1kw0j5o");
-      const collection = document.querySelector(".my-facilitator-events-collection");
-      if (!collection) return;
-      collection.querySelectorAll(".event-card-wrapper").forEach(card => {
-        const facilitatorEl = card.querySelector('[data-field="facilitator-email"]');
-        const facilitatorId = facilitatorEl?.textContent?.trim();
-        const isMatch = isFacilitator && facilitatorId === memberId;
-        card.classList.toggle("hide", !isMatch);
+      const memberEmail = (data?.email || "").trim().toLowerCase();
+      document.querySelectorAll(".facilitator-event").forEach(card => {
+        if (!isFacilitator) { card.classList.add("hide"); return; }
+        const emailEl = card.querySelector(".event-facilitator-email");
+        const facilitatorEmail = (emailEl?.textContent || "").trim().toLowerCase();
+        card.classList.toggle("hide", facilitatorEmail !== memberEmail);
       });
     }
 
@@ -556,7 +555,7 @@ function renderFields(data) {
     updateFacilitatorMenu(data);
     updateCancelPlan(data);
     filterMyEvents(data);
-    filterFacilitatorEvents(memberId, data);
+    filterFacilitatorEvents(data);
     renderFields(data);
     applyViewModeLocking();
     syncFilledUIState();
