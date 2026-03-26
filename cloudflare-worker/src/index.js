@@ -356,7 +356,7 @@ async function handleMemberProfileSupabase(payload, env) {
   if (isFacilitator && profile.email) {
     const email = encodeURIComponent(profile.email);
     const facilitatorEventsRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/events?facilitator_email=eq.${email}&select=id,event_name,event_slug`,
+      `${SUPABASE_URL}/rest/v1/events_with_capacity?facilitator_email=eq.${email}&select=id,event_slug,event_current_capacity`,
       { headers: sbHeaders }
     );
     if (facilitatorEventsRes.ok) {
@@ -372,7 +372,7 @@ async function handleMemberProfileSupabase(payload, env) {
           console.log(`[FACILITATOR] RSVPs for ${profile.email}:`, JSON.stringify(facilitator_rsvps));
         }
       }
-      facilitator_events = facilitatorEvents.map(e => ({ id: e.id, event_slug: e.event_slug }));
+      facilitator_events = facilitatorEvents.map(e => ({ id: e.id, event_slug: e.event_slug, event_current_capacity: e.event_current_capacity ?? 0 }));
     }
   }
 

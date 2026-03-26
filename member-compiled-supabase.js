@@ -560,10 +560,10 @@ function renderFields(data) {
     } else {
       console.log("[FACILITATOR] RSVPs for facilitator's events:", data.facilitator_rsvps);
 
-      // Build slug → event_id map
-      const slugToEventId = {};
+      // Build slug → event map
+      const slugToEvent = {};
       (data.facilitator_events || []).forEach(e => {
-        if (e.event_slug) slugToEventId[e.event_slug] = e.id;
+        if (e.event_slug) slugToEvent[e.event_slug] = e;
       });
 
       // Group RSVPs by event_id
@@ -578,11 +578,11 @@ function renderFields(data) {
         const link = card.querySelector("a[href]");
         if (!link?.href) return;
         const slug = link.href.split("/").filter(Boolean).pop();
-        const eventId = slugToEventId[slug];
-        if (!eventId) return;
+        const event = slugToEvent[slug];
+        if (!event) return;
 
         const counts = { booked: 0, canceled: 0, checked: 0, "no-show": 0 };
-        (rsvpsByEvent[eventId] || []).forEach(r => {
+        (rsvpsByEvent[event.id] || []).forEach(r => {
           if (r.booking_status in counts) counts[r.booking_status]++;
         });
         console.log(`[FACILITATOR] ${slug} counts:`, counts);
@@ -591,6 +591,9 @@ function renderFields(data) {
           const el = card.querySelector(`[data-field="${status}"]`);
           if (el) el.textContent = count;
         }
+
+        const capacityEl = card.querySelector('[data-field="current-capacity"]');
+        if (capacityEl) capacityEl.textContent = event.event_current_capacity;
       });
     }
 
