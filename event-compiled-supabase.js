@@ -96,8 +96,9 @@
 
     const capacity = result.current_capacity ?? 0;
 
-    // Show event info if member has admin plan or admin URL param
-    const isAdminPlan = result.member?.plan_name?.some(p => p.planName.toLowerCase().includes("admin"));
+    // Show event info if member has admin plan
+    const ADMIN_PLAN_ID = "pln_admin-1823l09h8";
+    const isAdminPlan = result.member?.plan_name?.some(p => p.planId === ADMIN_PLAN_ID);
     if (isAdminPlan) {
       $$(".event-info-wrapper").forEach(el => el.classList.remove("hide"));
     }

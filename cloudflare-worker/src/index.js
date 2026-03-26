@@ -16,6 +16,24 @@
 
 const SUPABASE_URL = "https://wioktwzioxzgmntgxsme.supabase.co";
 
+const PLAN_IDS = {
+  active:      "pln_approved-member-bd2jv0hp1",
+  admin:       "pln_admin-1823l09h8",
+  facilitator: "pln_facilitator-9o1kw0j5o",
+  frozen:      "pln_freeze-yy2kn0ejb",
+  pending:     "pln_members-5kbh0gjx",
+  rejected:    "pln_rejected-fo1l60nm3",
+};
+
+function parsePlanConnections(connections) {
+  return connections.map(c => ({
+    planId:   c.planId || "",
+    planName: c.plan?.name || "",
+    status:   (c.payment?.status || c.status || "").toLowerCase(),
+    type:     (c.type || "").toLowerCase(),
+  }));
+}
+
 const QUESTIONNAIRE_FIELDS = [
   "where_are_you_on_your_path",
   "how_can_we_support_you",
@@ -323,10 +341,7 @@ async function handleMemberProfileSupabase(payload, env) {
   if (msRes.ok) {
     const msData = await msRes.json();
     const connections = msData?.data?.planConnections || [];
-    plan_name = connections.map(c => ({
-      planName: c.plan?.name || "",
-      status:   (c.payment?.status || c.status || "").toLowerCase(),
-    }));
+    plan_name = parsePlanConnections(connections);
   } else {
     console.warn(`[MEMBER] Memberstack GET member failed: ${msRes.status}`);
   }
@@ -382,10 +397,7 @@ async function handleEventData(payload, env) {
     const msData = await msRes.json();
     const connections = msData?.data?.planConnections || [];
     member = {
-      plan_name: connections.map(c => ({
-        planName: c.plan?.name || "",
-        status:   (c.payment?.status || c.status || "").toLowerCase(),
-      })),
+      plan_name: parsePlanConnections(connections),
     };
   }
 
