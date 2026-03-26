@@ -140,6 +140,9 @@
           const el = row.querySelector(`[data-field="${key}"]`);
           if (el) el.textContent = val;
         });
+        if (rsvp.booking_status === "checked") {
+          row.querySelector(".check")?.classList.remove("hide");
+        }
         container.appendChild(row);
       });
     }
