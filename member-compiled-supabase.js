@@ -358,13 +358,21 @@
           .filter(r => r.booking_status === "booked" && r.event_slug)
           .map(r => r.event_slug)
       );
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
       document.querySelectorAll(".event-card-wrapper.my-event").forEach(card => {
         const link = card.querySelector(".button.event-card");
         if (!link?.href) { card.classList.add("hide"); return; }
         const slug = link.href.split("/").filter(Boolean).pop();
         const isBooked = bookedSlugs.has(slug);
-        card.classList.toggle("hide", !isBooked);
-        if (isBooked) {
+
+        const dateEl = card.querySelector("[data-event-time]");
+        const eventDate = dateEl ? new Date(dateEl.textContent.trim()) : null;
+        const isPast = eventDate && eventDate < today;
+
+        card.classList.toggle("hide", !isBooked || isPast);
+        if (isBooked && !isPast) {
           const url = new URL(link.href, window.location.origin);
           url.searchParams.set("booked", "true");
           link.href = url.toString();
