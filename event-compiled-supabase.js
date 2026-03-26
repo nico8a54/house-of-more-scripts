@@ -96,11 +96,15 @@
 
     const capacity = result.current_capacity ?? 0;
 
-    // Show event info if member has admin plan
-    const ADMIN_PLAN_ID = "pln_admin-1823l09h8";
-    const isAdminPlan = result.member?.plan_name?.some(p => p.planId === ADMIN_PLAN_ID);
-    if (isAdminPlan) {
+    // Show event info if member has admin or facilitator plan
+    const ADMIN_PLAN_ID       = "pln_admin-1823l09h8";
+    const FACILITATOR_PLAN_ID = "pln_facilitator-9o1kw0j5o";
+    const isPrivileged = result.member?.plan_name?.some(
+      p => p.planId === ADMIN_PLAN_ID || p.planId === FACILITATOR_PLAN_ID
+    );
+    if (isPrivileged) {
       $$(".event-info-wrapper").forEach(el => el.classList.remove("hide"));
+      rsvpBtn?.classList.add("hide");
     }
 
     // Capacity tag
