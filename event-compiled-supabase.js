@@ -124,7 +124,8 @@
     if (template && result.rsvps?.length) {
       const container = template.parentElement;
       template.classList.add("hide");
-      result.rsvps.forEach(rsvp => {
+      const SHOW_STATUSES = ["booked", "canceled", "checked", "no-show"];
+      result.rsvps.filter(r => SHOW_STATUSES.includes(r.booking_status)).forEach(rsvp => {
         const row = template.cloneNode(true);
         row.classList.remove("hide");
         const profile = rsvp.member_profiles || {};
