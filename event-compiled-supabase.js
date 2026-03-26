@@ -4,6 +4,8 @@
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => document.querySelectorAll(selector);
 
+  const state = { event_id: null };
+
   function renderFields(scope, data) {
     Object.entries(data).forEach(([key, value]) => {
       const field = scope.querySelector(`[data-field="${key}"]`);
@@ -94,6 +96,7 @@
       return;
     }
 
+    state.event_id = result.event?.id || null;
     const capacity = result.current_capacity ?? 0;
 
     // Show event info if member has admin or facilitator plan
@@ -362,41 +365,11 @@
         rsvpConfirmBtn.disabled = true;
         rsvpConfirmBtn.style.pointerEvents = "none";
 
-        const statusToSend = getRsvpMode();
-        console.log("[EVENT] RSVP status:", statusToSend);
+        console.log("[RSVP] member_id:", memberId, "event_id:", state.event_id);
 
-        try {
-          const response = await fetch(
-            "https://houseofmore.nico-97c.workers.dev/member-rsvp-supabase",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                event_slug: eventSlug,
-                member_id: memberId,
-                status: statusToSend,
-              }),
-            },
-          );
-          const result = await response.json();
-          console.log("[EVENT] RSVP response:", result);
-
-          rsvpAlertModal?.classList.add("hide");
-
-          if (answerModal && messageRespond && result.message) {
-            messageRespond.textContent = result.message;
-            answerModal.classList.remove("hide");
-          } else {
-            alert("The booking didn't go through.");
-          }
-        } catch (error) {
-          console.error("[EVENT] RSVP error:", error);
-          alert("The booking didn't go through.");
-        } finally {
-          isSubmittingRsvp = false;
-          rsvpConfirmBtn.disabled = false;
-          rsvpConfirmBtn.style.pointerEvents = "";
-        }
+        isSubmittingRsvp = false;
+        rsvpConfirmBtn.disabled = false;
+        rsvpConfirmBtn.style.pointerEvents = "";
       });
     }
 
