@@ -344,7 +344,7 @@ async function handleMemberProfileSupabase(payload, env) {
 }
 
 async function handleEventData(payload, env) {
-  const { event_slug } = payload;
+  const { event_slug, member_id } = payload;
   if (!event_slug) throw new Error("event_slug is required");
 
   const sbHeaders = {
@@ -368,13 +368,28 @@ async function handleEventData(payload, env) {
   if (!event) throw new Error("Event not found");
 
   const eventId = encodeURIComponent(event.id);
-  const rsvpsRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/event_rsvps?event_id=eq.${eventId}&select=*&order=booked_at.asc`,
-    { headers: sbHeaders }
-  );
+  const [rsvpsRes, msRes] = await Promise.all([
+    fetch(`${SUPABASE_URL}/rest/v1/event_rsvps?event_id=eq.${eventId}&select=*&order=booked_at.asc`, { headers: sbHeaders }),
+    member_id
+      ? fetch(`https://admin.memberstack.com/members/${member_id}`, { headers: { "x-api-key": env.MEMBERSTACK_KEY } })
+      : Promise.resolve(null),
+  ]);
+
   const rsvps = rsvpsRes.ok ? await rsvpsRes.json() : [];
 
-  return { event, rsvps, current_capacity: event.event_current_capacity ?? 0 };
+  let member = null;
+  if (msRes?.ok) {
+    const msData = await msRes.json();
+    const connections = msData?.data?.planConnections || [];
+    member = {
+      plan_name: connections.map(c => ({
+        planName: c.plan?.name || "",
+        status:   (c.payment?.status || c.status || "").toLowerCase(),
+      })),
+    };
+  }
+
+  return { event, rsvps, current_capacity: event.event_current_capacity ?? 0, member };
 }
 
 async function handleMemberRsvpSupabase(payload, env) {
