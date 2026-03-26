@@ -411,7 +411,8 @@
 
     function applyEventDateFilter(type) {
       document.querySelectorAll(".event-card-wrapper.my-event").forEach(card => {
-        if (card.classList.contains("hide")) return; // not an RSVP card, leave hidden
+        const isRsvp = card.classList.contains("past-event") || card.classList.contains("upcoming-event");
+        if (!isRsvp) return;
         const isPast = card.classList.contains("past-event");
         card.classList.toggle("hide", type === "upcoming" ? isPast : !isPast);
       });
