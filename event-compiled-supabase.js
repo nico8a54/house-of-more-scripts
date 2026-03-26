@@ -365,11 +365,36 @@
         rsvpConfirmBtn.disabled = true;
         rsvpConfirmBtn.style.pointerEvents = "none";
 
-        console.log("[RSVP] member_id:", memberId, "event_id:", state.event_id);
+        const statusToSend = getRsvpMode();
 
-        isSubmittingRsvp = false;
-        rsvpConfirmBtn.disabled = false;
-        rsvpConfirmBtn.style.pointerEvents = "";
+        try {
+          const response = await fetch(
+            "https://houseofmore.nico-97c.workers.dev/member-rsvp-supabase",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ event_slug: eventSlug, member_id: memberId, status: statusToSend }),
+            }
+          );
+          const result = await response.json();
+          console.log("[RSVP] response:", result);
+
+          rsvpAlertModal?.classList.add("hide");
+
+          if (answerModal && messageRespond && result.message) {
+            messageRespond.textContent = result.message;
+            answerModal.classList.remove("hide");
+          } else {
+            alert("The booking didn't go through.");
+          }
+        } catch (err) {
+          console.error("[RSVP] error:", err);
+          alert("The booking didn't go through.");
+        } finally {
+          isSubmittingRsvp = false;
+          rsvpConfirmBtn.disabled = false;
+          rsvpConfirmBtn.style.pointerEvents = "";
+        }
       });
     }
 
