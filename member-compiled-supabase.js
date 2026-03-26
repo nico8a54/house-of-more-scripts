@@ -353,7 +353,6 @@
     }
 
     function filterMyEvents(data) {
-      // Map slug → booking_status for booked and canceled RSVPs
       const rsvpBySlug = {};
       (data.rsvps || []).forEach(r => {
         if (r.event_slug && (r.booking_status === "booked" || r.booking_status === "canceled")) {
@@ -370,13 +369,15 @@
         const slug = link.href.split("/").filter(Boolean).pop();
         const status = rsvpBySlug[slug];
 
+        if (!status) { card.classList.add("hide"); return; }
+
         const dateEl = card.querySelector("[data-event-time]");
         const eventDate = dateEl ? new Date(dateEl.textContent.trim()) : null;
-        const isPast = eventDate && eventDate < today;
-
-        if (!status || isPast) { card.classList.add("hide"); return; }
+        const isPast = eventDate && !isNaN(eventDate) && eventDate < today;
 
         card.classList.remove("hide");
+        card.classList.toggle("past-event", isPast);
+        card.classList.toggle("upcoming-event", !isPast);
 
         if (status === "canceled") {
           card.classList.add("canceled");
@@ -390,6 +391,29 @@
           url.searchParams.set("booked", "true");
           link.href = url.toString();
         }
+      });
+
+      // Default to upcoming view
+      applyEventDateFilter("upcoming");
+
+      // Wire filter buttons
+      const upcomingBtn = document.getElementById("upcoming-events");
+      const pastBtn = document.getElementById("past-events");
+
+      function setActiveFilter(active, inactive) {
+        active?.classList.add("active");
+        inactive?.classList.remove("active");
+      }
+
+      upcomingBtn?.addEventListener("click", () => { setActiveFilter(upcomingBtn, pastBtn); applyEventDateFilter("upcoming"); });
+      pastBtn?.addEventListener("click", () => { setActiveFilter(pastBtn, upcomingBtn); applyEventDateFilter("past"); });
+    }
+
+    function applyEventDateFilter(type) {
+      document.querySelectorAll(".event-card-wrapper.my-event").forEach(card => {
+        if (card.classList.contains("hide")) return; // not an RSVP card, leave hidden
+        const isPast = card.classList.contains("past-event");
+        card.classList.toggle("hide", type === "upcoming" ? isPast : !isPast);
       });
     }
 
