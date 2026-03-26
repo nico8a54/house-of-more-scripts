@@ -349,12 +349,38 @@ async function handleMemberProfileSupabase(payload, env) {
   const emptyRsvp     = Object.fromEntries(RSVP_FIELDS.map(k => [k, null]));
   const emptyDonation = Object.fromEntries(DONATION_FIELDS.map(k => [k, null]));
 
+  // Facilitator: fetch all RSVPs for their events
+  let facilitator_rsvps = null;
+  const isFacilitator = plan_name.some(p => p.planId === PLAN_IDS.facilitator);
+  if (isFacilitator && profile.email) {
+    const email = encodeURIComponent(profile.email);
+    const facilitatorEventsRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/events?facilitator_email=eq.${email}&select=id,event_name,event_slug`,
+      { headers: sbHeaders }
+    );
+    if (facilitatorEventsRes.ok) {
+      const facilitatorEvents = await facilitatorEventsRes.json();
+      if (facilitatorEvents.length) {
+        const eventIds = facilitatorEvents.map(e => e.id).join(",");
+        const facilitatorRsvpsRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/event_rsvps?event_id=in.(${eventIds})&select=*,member_profiles(member_id,first_name,last_name,email)&order=booked_at.asc`,
+          { headers: sbHeaders }
+        );
+        if (facilitatorRsvpsRes.ok) {
+          facilitator_rsvps = await facilitatorRsvpsRes.json();
+          console.log(`[FACILITATOR] RSVPs for ${profile.email}:`, JSON.stringify(facilitator_rsvps));
+        }
+      }
+    }
+  }
+
   return {
     ...profile,
     plan_name,
     questionnaire,
     rsvps:     rsvps.length     ? rsvps.map(r => ({ ...r, event_slug: r.events?.event_slug || null })) : [emptyRsvp],
     donations: donations.length ? donations : [emptyDonation],
+    ...(isFacilitator && { facilitator_rsvps }),
   };
 }
 

@@ -550,6 +550,17 @@ function renderFields(data) {
     }
 
     console.log("[MEMBER] Full profile response:", data);
+
+    const isFacilitator = Array.isArray(data?.plan_name) &&
+      data.plan_name.some(p => p?.planId === "pln_facilitator-9o1kw0j5o");
+    if (!isFacilitator) {
+      console.log("[FACILITATOR] Not a facilitator — skipping facilitator RSVPs.");
+    } else if (!data.facilitator_rsvps || data.facilitator_rsvps.length === 0) {
+      console.log("[FACILITATOR] Facilitator has no RSVPs yet.");
+    } else {
+      console.log("[FACILITATOR] RSVPs for facilitator's events:", data.facilitator_rsvps);
+    }
+
     state.data = data;
 
     updateFacilitatorMenu(data);
