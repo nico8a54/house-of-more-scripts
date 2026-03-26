@@ -592,7 +592,7 @@ function renderFields(data) {
           if (el) el.textContent = count;
         }
 
-        const capacityEl = card.querySelector('[data-field="current-capacity"]');
+        const capacityEl = card.querySelector('[data-field="event_current_capacity"]');
         if (capacityEl) capacityEl.textContent = event.event_current_capacity;
       });
     }
