@@ -353,11 +353,14 @@
     }
 
     function filterMyEvents(data) {
-      const bookedSlugs = new Set(
-        (data.rsvps || [])
-          .filter(r => r.booking_status === "booked" && r.event_slug)
-          .map(r => r.event_slug)
-      );
+      // Map slug → booking_status for booked and canceled RSVPs
+      const rsvpBySlug = {};
+      (data.rsvps || []).forEach(r => {
+        if (r.event_slug && (r.booking_status === "booked" || r.booking_status === "canceled")) {
+          rsvpBySlug[r.event_slug] = r.booking_status;
+        }
+      });
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
@@ -365,14 +368,24 @@
         const link = card.querySelector(".button.event-card");
         if (!link?.href) { card.classList.add("hide"); return; }
         const slug = link.href.split("/").filter(Boolean).pop();
-        const isBooked = bookedSlugs.has(slug);
+        const status = rsvpBySlug[slug];
 
         const dateEl = card.querySelector("[data-event-time]");
         const eventDate = dateEl ? new Date(dateEl.textContent.trim()) : null;
         const isPast = eventDate && eventDate < today;
 
-        card.classList.toggle("hide", !isBooked || isPast);
-        if (isBooked && !isPast) {
+        if (!status || isPast) { card.classList.add("hide"); return; }
+
+        card.classList.remove("hide");
+
+        if (status === "canceled") {
+          card.classList.add("canceled");
+          card.querySelectorAll(".tag-booked").forEach(tag => {
+            tag.classList.add("canceled");
+            tag.textContent = "Canceled";
+          });
+          link.classList.add("hide");
+        } else {
           const url = new URL(link.href, window.location.origin);
           url.searchParams.set("booked", "true");
           link.href = url.toString();
