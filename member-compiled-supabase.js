@@ -431,11 +431,38 @@
       const isFacilitator = Array.isArray(data?.plan_name) &&
         data.plan_name.some(p => p?.planId === "pln_facilitator-9o1kw0j5o");
       const memberEmail = (data?.email || "").trim().toLowerCase();
-      document.querySelectorAll(".facilitator-event").forEach(card => {
+
+      document.querySelectorAll(".facilitator-event").forEach(async card => {
         if (!isFacilitator) { card.classList.add("hide"); return; }
         const emailEl = card.querySelector(".event-facilitator-email");
         const facilitatorEmail = (emailEl?.textContent || "").trim().toLowerCase();
-        card.classList.toggle("hide", facilitatorEmail !== memberEmail);
+        if (facilitatorEmail !== memberEmail) { card.classList.add("hide"); return; }
+        card.classList.remove("hide");
+
+        // Append ?admin=true to view link and extract slug
+        const link = card.querySelector(".icon-wrapper.view-record-event");
+        if (!link?.href) return;
+        const url = new URL(link.href, window.location.origin);
+        url.searchParams.set("admin", "true");
+        link.href = url.toString();
+        const slug = url.pathname.split("/").filter(Boolean).pop();
+        if (!slug) return;
+
+        // Fetch event data (worker gates RSVPs to facilitator/admin)
+        try {
+          const res = await fetch("https://houseofmore.nico-97c.workers.dev/event-data", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ event_slug: slug, member_id: memberId }),
+          });
+          const result = await res.json();
+          const bookedEl = card.querySelector('[data-field="booked"]');
+          const capacityEl = card.querySelector('[data-field="event_current_capacity"]');
+          if (bookedEl) bookedEl.textContent = result.event?.booked_count ?? "";
+          if (capacityEl) capacityEl.textContent = result.current_capacity ?? "";
+        } catch (err) {
+          console.error("[FACILITATOR] event-data fetch error:", slug, err);
+        }
       });
     }
 
