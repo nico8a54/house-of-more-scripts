@@ -559,6 +559,16 @@ function renderFields(data) {
       console.log("[FACILITATOR] Facilitator has no RSVPs yet.");
     } else {
       console.log("[FACILITATOR] RSVPs for facilitator's events:", data.facilitator_rsvps);
+      const counts = { booked: 0, canceled: 0, checked: 0, "no-show": 0 };
+      for (const rsvp of data.facilitator_rsvps) {
+        const s = rsvp.booking_status;
+        if (s in counts) counts[s]++;
+      }
+      console.log("[FACILITATOR] Totals:", counts);
+      for (const [status, count] of Object.entries(counts)) {
+        const el = document.querySelector(`[data-field="${status}"]`);
+        if (el) el.textContent = count;
+      }
     }
 
     state.data = data;
