@@ -369,10 +369,14 @@ async function handleEventData(payload, env) {
 
   const slug = encodeURIComponent(event_slug);
 
-  const eventRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/events_with_capacity?event_slug=eq.${slug}&select=*`,
-    { headers: sbHeaders }
-  );
+  // Fetch event + member plan in parallel
+  const [eventRes, msRes] = await Promise.all([
+    fetch(`${SUPABASE_URL}/rest/v1/events_with_capacity?event_slug=eq.${slug}&select=*`, { headers: sbHeaders }),
+    member_id
+      ? fetch(`https://admin.memberstack.com/members/${member_id}`, { headers: { "x-api-key": env.MEMBERSTACK_KEY } })
+      : Promise.resolve(null),
+  ]);
+
   if (!eventRes.ok) {
     const err = await eventRes.text();
     throw new Error(`Supabase events error (${eventRes.status}): ${err}`);
@@ -382,23 +386,26 @@ async function handleEventData(payload, env) {
   const event = events[0];
   if (!event) throw new Error("Event not found");
 
-  const eventId = encodeURIComponent(event.id);
-  const [rsvpsRes, msRes] = await Promise.all([
-    fetch(`${SUPABASE_URL}/rest/v1/event_rsvps?event_id=eq.${eventId}&select=*,member_profiles(member_id,first_name,last_name,email)&order=booked_at.asc`, { headers: sbHeaders }),
-    member_id
-      ? fetch(`https://admin.memberstack.com/members/${member_id}`, { headers: { "x-api-key": env.MEMBERSTACK_KEY } })
-      : Promise.resolve(null),
-  ]);
-
-  const rsvps = rsvpsRes.ok ? await rsvpsRes.json() : [];
-
   let member = null;
   if (msRes?.ok) {
     const msData = await msRes.json();
     const connections = msData?.data?.planConnections || [];
-    member = {
-      plan_name: parsePlanConnections(connections),
-    };
+    member = { plan_name: parsePlanConnections(connections) };
+  }
+
+  // Only fetch RSVPs with member profiles for admin or facilitator
+  const isPrivileged = member?.plan_name?.some(
+    p => p.planId === PLAN_IDS.admin || p.planId === PLAN_IDS.facilitator
+  );
+
+  let rsvps = [];
+  if (isPrivileged) {
+    const eventId = encodeURIComponent(event.id);
+    const rsvpsRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/event_rsvps?event_id=eq.${eventId}&select=*,member_profiles(member_id,first_name,last_name,email)&order=booked_at.asc`,
+      { headers: sbHeaders }
+    );
+    rsvps = rsvpsRes.ok ? await rsvpsRes.json() : [];
   }
 
   return { event, rsvps, current_capacity: event.event_current_capacity ?? 0, member };
