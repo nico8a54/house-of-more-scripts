@@ -134,6 +134,7 @@
           email:          profile.email || "",
           id:             rsvp.id || "",
           booking_status: rsvp.booking_status || "",
+          member:         rsvp.member === false ? "no" : "yes",
         };
         Object.entries(fields).forEach(([key, val]) => {
           const el = row.querySelector(`[data-field="${key}"]`);
