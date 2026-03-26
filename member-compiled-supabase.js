@@ -560,6 +560,8 @@ function renderFields(data) {
     } else {
       console.log("[FACILITATOR] RSVPs for facilitator's events:", data.facilitator_rsvps);
 
+      console.log("[FACILITATOR] facilitator_events:", data.facilitator_events);
+
       // Build slug → event map
       const slugToEvent = {};
       (data.facilitator_events || []).forEach(e => {
@@ -593,6 +595,7 @@ function renderFields(data) {
         }
 
         const capacityEl = card.querySelector('[data-field="event_current_capacity"]');
+        console.log(`[FACILITATOR] ${slug} capacity el:`, capacityEl, "value:", event.event_current_capacity);
         if (capacityEl) capacityEl.textContent = event.event_current_capacity;
       });
     }
