@@ -133,7 +133,7 @@
         row.classList.remove("hide");
         const profile = rsvp.member_profiles || {};
         const fields = {
-          first_name:     profile.first_name || "",
+          first_name:     [profile.first_name, profile.last_name].filter(Boolean).join(" "),
           email:          profile.email || "",
           id:             rsvp.id || "",
           booking_status: rsvp.booking_status || "",
@@ -160,11 +160,10 @@
         row.classList.remove("hide");
         const profile = rsvp.member_profiles || {};
         const fields = {
-          first_name:     profile.first_name || "",
-          last_name:      profile.last_name || "",
+          first_name:     [profile.first_name, profile.last_name].filter(Boolean).join(" "),
           email:          profile.email || "",
           member_id:      rsvp.member_id || "",
-          rating:         "★".repeat(rsvp.rating ?? 0),
+          rating:         "★".repeat(rsvp.rating ?? 0) + "☆".repeat(5 - (rsvp.rating ?? 0)),
           review:         rsvp.review || "",
           booking_status: rsvp.booking_status || "",
         };
