@@ -384,7 +384,7 @@ async function handleEventData(payload, env) {
 
   const eventId = encodeURIComponent(event.id);
   const [rsvpsRes, msRes] = await Promise.all([
-    fetch(`${SUPABASE_URL}/rest/v1/event_rsvps?event_id=eq.${eventId}&select=*&order=booked_at.asc`, { headers: sbHeaders }),
+    fetch(`${SUPABASE_URL}/rest/v1/event_rsvps?event_id=eq.${eventId}&select=*,member_profiles(member_id,first_name,last_name,email)&order=booked_at.asc`, { headers: sbHeaders }),
     member_id
       ? fetch(`https://admin.memberstack.com/members/${member_id}`, { headers: { "x-api-key": env.MEMBERSTACK_KEY } })
       : Promise.resolve(null),
