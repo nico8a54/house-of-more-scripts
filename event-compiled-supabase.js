@@ -151,9 +151,9 @@
     }
 
     // Render reviews list
-    const reviewTemplate = document.querySelector(".review-row");
-    const reviewContainer = document.querySelector(".review-container");
-    if (reviewTemplate && reviewContainer && result.rsvps?.length) {
+    const reviewTemplate = document.querySelector(".review-container");
+    if (reviewTemplate && result.rsvps?.length) {
+      const reviewParent = reviewTemplate.parentElement;
       reviewTemplate.classList.add("hide");
       result.rsvps.filter(r => r.review).forEach(rsvp => {
         const row = reviewTemplate.cloneNode(true);
@@ -172,7 +172,7 @@
           const el = row.querySelector(`[data-field="${key}"]`);
           if (el) el.textContent = val;
         });
-        reviewContainer.appendChild(row);
+        reviewParent.appendChild(row);
       });
     }
 

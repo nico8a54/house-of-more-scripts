@@ -217,7 +217,7 @@ Note: `rsvps` and `donations` return a skeleton object with null values when emp
   - Sorted: checked → booked → canceled → no-show
   - Renders: `first_name`, `email`, `id` (RSVP uuid), `booking_status`, `member` (yes/no)
   - Shows `.check` element for `booking_status === "checked"`
-- **Reviews list**: clones `.review-row` template, appends to `.review-container`, for each RSVP where `review` is not null
+- **Reviews list**: clones `.review-container` template, appends to its `parentElement`, for each RSVP where `review` is not null
   - Renders: `first_name`, `last_name`, `email`, `member_id`, `rating`, `review`, `booking_status`
 - **RSVP button state**: hides if admin/event-manager or capacity ≤ -5; sets text to Cancel/Waiting List/RSVP
 
