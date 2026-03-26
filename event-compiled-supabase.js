@@ -124,8 +124,11 @@
     if (template && result.rsvps?.length) {
       const container = template.parentElement;
       template.classList.add("hide");
-      const SHOW_STATUSES = ["booked", "canceled", "checked", "no-show"];
-      result.rsvps.filter(r => SHOW_STATUSES.includes(r.booking_status)).forEach(rsvp => {
+      const STATUS_ORDER = ["checked", "booked", "canceled", "no-show"];
+      const sortedRsvps = result.rsvps
+        .filter(r => STATUS_ORDER.includes(r.booking_status))
+        .sort((a, b) => STATUS_ORDER.indexOf(a.booking_status) - STATUS_ORDER.indexOf(b.booking_status));
+      sortedRsvps.forEach(rsvp => {
         const row = template.cloneNode(true);
         row.classList.remove("hide");
         const profile = rsvp.member_profiles || {};
