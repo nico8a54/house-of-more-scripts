@@ -372,19 +372,7 @@
       cancelPlanEl.classList.toggle("hide", !hasActivePayPlan);
     }
 
-    function addMemberProfileToEventLinks(data) {
-      if (!data?.id) return;
-      document.querySelectorAll(".button.event-card").forEach(btn => {
-        if (!btn.href) return;
-        try {
-          const url = new URL(btn.href, window.location.origin);
-          url.searchParams.set("member_profile", data.id);
-          btn.href = url.toString();
-        } catch (err) { console.warn("[MEMBER] Invalid event URL:", btn.href); }
-      });
-    }
-
-    function renderFields(data) {
+function renderFields(data) {
       const flat = { ...data, ...data.questionnaire };
       let rendered = 0;
       Object.entries(flat).forEach(([key, value]) => {
@@ -488,7 +476,6 @@
 
     updateFacilitatorMenu(data);
     updateCancelPlan(data);
-    addMemberProfileToEventLinks(data);
     renderFields(data);
     applyViewModeLocking();
     syncFilledUIState();
