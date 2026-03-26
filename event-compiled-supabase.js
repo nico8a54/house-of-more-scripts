@@ -183,7 +183,7 @@
     const isAdmin = params.get("admin") === "true";
     const isEventManager = params.get("source") === "event-manager";
     if (rsvpBtn) {
-      if (isAdmin || isEventManager) {
+      if (isAdmin || isEventManager || isPrivileged) {
         rsvpBtn.classList.add("hide");
       } else if (capacity <= -5 && !isCancelMode) {
         rsvpBtn.classList.add("hide");
