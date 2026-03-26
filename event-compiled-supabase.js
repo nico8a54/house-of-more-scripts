@@ -150,6 +150,32 @@
       });
     }
 
+    // Render reviews list
+    const reviewTemplate = document.querySelector(".review-row");
+    if (reviewTemplate && result.rsvps?.length) {
+      const reviewContainer = reviewTemplate.parentElement;
+      reviewTemplate.classList.add("hide");
+      result.rsvps.filter(r => r.review).forEach(rsvp => {
+        const row = reviewTemplate.cloneNode(true);
+        row.classList.remove("hide");
+        const profile = rsvp.member_profiles || {};
+        const fields = {
+          first_name:     profile.first_name || "",
+          last_name:      profile.last_name || "",
+          email:          profile.email || "",
+          member_id:      rsvp.member_id || "",
+          rating:         rsvp.rating ?? "",
+          review:         rsvp.review || "",
+          booking_status: rsvp.booking_status || "",
+        };
+        Object.entries(fields).forEach(([key, val]) => {
+          const el = row.querySelector(`[data-field="${key}"]`);
+          if (el) el.textContent = val;
+        });
+        reviewContainer.appendChild(row);
+      });
+    }
+
     // RSVP button state
     const isAdmin = params.get("admin") === "true";
     const isEventManager = params.get("source") === "event-manager";
