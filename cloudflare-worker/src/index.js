@@ -652,6 +652,46 @@ export default {
       }
     }
 
+    // Event data (Supabase direct)
+    if (path === "/event-data") {
+      if (!env.SUPABASE_KEY) return new Response("Server misconfiguration", { status: 500 });
+      let payload;
+      try { payload = await request.json(); } catch { return new Response("Bad request", { status: 400 }); }
+      try {
+        const data = await handleEventData(payload, env);
+        return new Response(JSON.stringify(data), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      }
+    }
+
+    // Member RSVP (Supabase direct)
+    if (path === "/member-rsvp-supabase") {
+      if (!env.SUPABASE_KEY) return new Response("Server misconfiguration", { status: 500 });
+      let payload;
+      try { payload = await request.json(); } catch { return new Response("Bad request", { status: 400 }); }
+      try {
+        const result = await handleMemberRsvpSupabase(payload, env);
+        return new Response(JSON.stringify({ message: result }), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      }
+    }
+
     // Member profile (Supabase direct)
     if (path === "/member-profile") {
       if (!env.SUPABASE_KEY || !env.MEMBERSTACK_KEY) {
