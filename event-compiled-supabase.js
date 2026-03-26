@@ -119,6 +119,29 @@
     }
     if (spotsEl) spotsEl.textContent = capacity;
 
+    // Render attendants list
+    const template = document.querySelector(".attendants-row");
+    if (template && result.rsvps?.length) {
+      const container = template.parentElement;
+      template.classList.add("hide");
+      result.rsvps.forEach(rsvp => {
+        const row = template.cloneNode(true);
+        row.classList.remove("hide");
+        const profile = rsvp.member_profiles || {};
+        const fields = {
+          first_name:     profile.first_name || "",
+          email:          profile.email || "",
+          id:             rsvp.id || "",
+          booking_status: rsvp.booking_status || "",
+        };
+        Object.entries(fields).forEach(([key, val]) => {
+          const el = row.querySelector(`[data-field="${key}"]`);
+          if (el) el.textContent = val;
+        });
+        container.appendChild(row);
+      });
+    }
+
     // RSVP button state
     const isAdmin = params.get("admin") === "true";
     const isEventManager = params.get("source") === "event-manager";
