@@ -87,7 +87,8 @@
         },
       );
       result = await response.json();
-      console.log("[EVENT] Fetch result:", result);
+      console.log("[EVENT] Supabase response:", result);
+      console.log("[EVENT] current_capacity:", result.current_capacity);
     } catch (err) {
       console.error("[EVENT] Fetch error:", err);
       return;
