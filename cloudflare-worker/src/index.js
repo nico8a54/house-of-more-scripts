@@ -405,7 +405,7 @@ async function handleEventData(payload, env) {
 }
 
 async function handleMemberRsvpSupabase(payload, env) {
-  const { event_slug, member_id, member_email, member_name, status } = payload;
+  const { event_slug, member_id, member_email, name, status, member = true } = payload;
   if (!event_slug || !member_id) throw new Error("event_slug and member_id are required");
 
   const sbHeaders = {
@@ -470,6 +470,7 @@ async function handleMemberRsvpSupabase(payload, env) {
         member_id,
         booking_status: rsvpStatus,
         booked_at:      new Date().toISOString(),
+        member,
       }),
     }
   );
