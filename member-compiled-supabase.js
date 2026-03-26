@@ -352,6 +352,26 @@
       });
     }
 
+    function filterMyEvents(data) {
+      const bookedSlugs = new Set(
+        (data.rsvps || [])
+          .filter(r => r.booking_status === "booked" && r.event_slug)
+          .map(r => r.event_slug)
+      );
+      document.querySelectorAll(".event-card-wrapper.my-event").forEach(card => {
+        const link = card.querySelector(".button.event-card");
+        if (!link?.href) { card.classList.add("hide"); return; }
+        const slug = link.href.split("/").filter(Boolean).pop();
+        const isBooked = bookedSlugs.has(slug);
+        card.classList.toggle("hide", !isBooked);
+        if (isBooked) {
+          const url = new URL(link.href, window.location.origin);
+          url.searchParams.set("booked", "true");
+          link.href = url.toString();
+        }
+      });
+    }
+
     const PAY_PLANS = new Set(["advocate","builder","champion","neighbor","partner","patron","supporter","sustainer","visionary"]);
 
     function updateFacilitatorMenu(data) {
@@ -476,6 +496,7 @@ function renderFields(data) {
 
     updateFacilitatorMenu(data);
     updateCancelPlan(data);
+    filterMyEvents(data);
     renderFields(data);
     applyViewModeLocking();
     syncFilledUIState();

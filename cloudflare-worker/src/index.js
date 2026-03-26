@@ -316,7 +316,7 @@ async function handleMemberProfileSupabase(payload, env) {
   const [profileRes, questionnaireRes, rsvpsRes, donationsRes, msRes] = await Promise.all([
     fetch(`${SUPABASE_URL}/rest/v1/member_profiles?member_id=eq.${mid}&select=*`,                         { headers: sbHeaders }),
     fetch(`${SUPABASE_URL}/rest/v1/member_questionnaire?member_id=eq.${mid}&select=*`,                    { headers: sbHeaders }),
-    fetch(`${SUPABASE_URL}/rest/v1/event_rsvps?member_id=eq.${mid}&select=*&order=booked_at.desc`,        { headers: sbHeaders }),
+    fetch(`${SUPABASE_URL}/rest/v1/event_rsvps?member_id=eq.${mid}&select=*,events(event_slug)&order=booked_at.desc`, { headers: sbHeaders }),
     fetch(`${SUPABASE_URL}/rest/v1/donations?member_id=eq.${mid}&select=*&order=created_at.desc`,         { headers: sbHeaders }),
     fetch(`https://admin.memberstack.com/members/${member_id}`, { headers: { "x-api-key": env.MEMBERSTACK_KEY } }),
   ]);
@@ -353,7 +353,7 @@ async function handleMemberProfileSupabase(payload, env) {
     ...profile,
     plan_name,
     questionnaire,
-    rsvps:     rsvps.length     ? rsvps     : [emptyRsvp],
+    rsvps:     rsvps.length     ? rsvps.map(r => ({ ...r, event_slug: r.events?.event_slug || null })) : [emptyRsvp],
     donations: donations.length ? donations : [emptyDonation],
   };
 }
