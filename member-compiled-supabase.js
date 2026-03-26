@@ -423,7 +423,7 @@
     function updateFacilitatorMenu(data) {
       hide(ui.facilitatorMenu);
       if (!ui.facilitatorMenu || !Array.isArray(data?.plan_name)) return;
-      const hasFacilitator = data.plan_name.some(p => String(p?.planName || "").toLowerCase() === "facilitator");
+      const hasFacilitator = data.plan_name.some(p => p?.planId === "pln_facilitator-9o1kw0j5o");
       if (hasFacilitator) show(ui.facilitatorMenu);
     }
 
