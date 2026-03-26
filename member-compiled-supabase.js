@@ -559,16 +559,39 @@ function renderFields(data) {
       console.log("[FACILITATOR] Facilitator has no RSVPs yet.");
     } else {
       console.log("[FACILITATOR] RSVPs for facilitator's events:", data.facilitator_rsvps);
-      const counts = { booked: 0, canceled: 0, checked: 0, "no-show": 0 };
+
+      // Build slug → event_id map
+      const slugToEventId = {};
+      (data.facilitator_events || []).forEach(e => {
+        if (e.event_slug) slugToEventId[e.event_slug] = e.id;
+      });
+
+      // Group RSVPs by event_id
+      const rsvpsByEvent = {};
       for (const rsvp of data.facilitator_rsvps) {
-        const s = rsvp.booking_status;
-        if (s in counts) counts[s]++;
+        if (!rsvpsByEvent[rsvp.event_id]) rsvpsByEvent[rsvp.event_id] = [];
+        rsvpsByEvent[rsvp.event_id].push(rsvp);
       }
-      console.log("[FACILITATOR] Totals:", counts);
-      for (const [status, count] of Object.entries(counts)) {
-        const el = document.querySelector(`[data-field="${status}"]`);
-        if (el) el.textContent = count;
-      }
+
+      // Render counts per card
+      document.querySelectorAll(".facilitator-event").forEach(card => {
+        const link = card.querySelector("a[href]");
+        if (!link?.href) return;
+        const slug = link.href.split("/").filter(Boolean).pop();
+        const eventId = slugToEventId[slug];
+        if (!eventId) return;
+
+        const counts = { booked: 0, canceled: 0, checked: 0, "no-show": 0 };
+        (rsvpsByEvent[eventId] || []).forEach(r => {
+          if (r.booking_status in counts) counts[r.booking_status]++;
+        });
+        console.log(`[FACILITATOR] ${slug} counts:`, counts);
+
+        for (const [status, count] of Object.entries(counts)) {
+          const el = card.querySelector(`[data-field="${status}"]`);
+          if (el) el.textContent = count;
+        }
+      });
     }
 
     state.data = data;

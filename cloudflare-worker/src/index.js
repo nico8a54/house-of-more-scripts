@@ -351,6 +351,7 @@ async function handleMemberProfileSupabase(payload, env) {
 
   // Facilitator: fetch all RSVPs for their events
   let facilitator_rsvps = null;
+  let facilitator_events = null;
   const isFacilitator = plan_name.some(p => p.planId === PLAN_IDS.facilitator);
   if (isFacilitator && profile.email) {
     const email = encodeURIComponent(profile.email);
@@ -371,6 +372,7 @@ async function handleMemberProfileSupabase(payload, env) {
           console.log(`[FACILITATOR] RSVPs for ${profile.email}:`, JSON.stringify(facilitator_rsvps));
         }
       }
+      facilitator_events = facilitatorEvents.map(e => ({ id: e.id, event_slug: e.event_slug }));
     }
   }
 
@@ -380,7 +382,7 @@ async function handleMemberProfileSupabase(payload, env) {
     questionnaire,
     rsvps:     rsvps.length     ? rsvps.map(r => ({ ...r, event_slug: r.events?.event_slug || null })) : [emptyRsvp],
     donations: donations.length ? donations : [emptyDonation],
-    ...(isFacilitator && { facilitator_rsvps }),
+    ...(isFacilitator && { facilitator_rsvps, facilitator_events }),
   };
 }
 
