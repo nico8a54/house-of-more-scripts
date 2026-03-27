@@ -248,11 +248,23 @@ async function handleSendRsvpEmail(request, env) {
   }
 
   const record = payload?.record;
+  const oldRecord = payload?.old_record;
+  const eventType = payload?.type; // "INSERT" or "UPDATE"
+
   if (!record) return new Response(JSON.stringify({ ok: true, skipped: "no record" }), { status: 200, headers: { "Content-Type": "application/json" } });
 
-  // Only send for confirmed bookings
-  if (record.booking_status !== "booking") {
-    return new Response(JSON.stringify({ ok: true, skipped: `status=${record.booking_status}` }), { status: 200, headers: { "Content-Type": "application/json" } });
+  // Determine which email to send
+  // INSERT + booking_status = "booking" → confirmation
+  // UPDATE + old booking → canceled → cancellation
+  let emailType = null;
+  if (eventType === "INSERT" && record.booking_status === "booking") {
+    emailType = "confirmation";
+  } else if (eventType === "UPDATE" && oldRecord?.booking_status === "booking" && record.booking_status === "canceled") {
+    emailType = "cancellation";
+  }
+
+  if (!emailType) {
+    return new Response(JSON.stringify({ ok: true, skipped: `type=${eventType} status=${record.booking_status}` }), { status: 200, headers: { "Content-Type": "application/json" } });
   }
 
   // Skip non-members (no member_id)
@@ -285,11 +297,15 @@ async function handleSendRsvpEmail(request, env) {
     ? new Date(event.event_date).toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" })
     : "TBD";
 
-  const qrUrl = `https://quickchart.io/qr?size=300&text=${encodeURIComponent(record.id)}`;
-  const eventUrl = `https://thehouseofmore.com/events-2026/${event.event_slug}`;
-  const locationOrLink = event.event_link || event.event_location || "TBD";
+  let subject, html;
 
-  const html = `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f2f2f2; padding:40px 0;">
+  if (emailType === "confirmation") {
+    const qrUrl = `https://quickchart.io/qr?size=300&text=${encodeURIComponent(record.id)}`;
+    const eventUrl = `https://thehouseofmore.com/events-2026/${event.event_slug}`;
+    const locationOrLink = event.event_link || event.event_location || "TBD";
+
+    subject = `You're registered — ${event.event_name}`;
+    html = `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f2f2f2; padding:40px 0;">
   <tr>
     <td align="center">
       <table width="500" cellpadding="0" cellspacing="0" border="0" align="center"
@@ -417,6 +433,109 @@ async function handleSendRsvpEmail(request, env) {
     </td>
   </tr>
 </table>`;
+  } else {
+    subject = `Your cancellation is confirmed — ${event.event_name}`;
+    html = `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f2f2f2; padding:40px 0;">
+  <tr>
+    <td align="center">
+      <table width="500" cellpadding="0" cellspacing="0" border="0" align="center"
+        style="background-color:#ffffff; border-radius:10px; overflow:hidden;">
+        <tr>
+          <td align="center" style="background-color:#2b1f14; padding:24px 40px;">
+            <div style="font-family:Georgia, serif; font-size:22px; color:#ffffff; letter-spacing:1px;">THE HOUSE OF MORE</div>
+            <a href="https://thehouseofmore.com" style="color:#946a49 !important; text-decoration:none;">thehouseofmore.com</a>
+          </td>
+        </tr>
+        <tr><td style="height:36px;"></td></tr>
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; letter-spacing:2px; color:#8c7a64;">CANCELLATION CONFIRMATION</div>
+          </td>
+        </tr>
+        <tr><td style="height:14px;"></td></tr>
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:28px; color:#2b2b2b; line-height:34px;">Your cancellation is confirmed.</div>
+          </td>
+        </tr>
+        <tr><td style="height:20px;"></td></tr>
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:15px; color:#5c5c5c; line-height:24px;">
+              Dear ${member.first_name},<br><br>
+              We've received your request to cancel your spot for <strong>${event.event_name}</strong>.<br><br>
+              Your registration has been removed, and the space is now available for another member.
+            </div>
+          </td>
+        </tr>
+        <tr><td style="height:32px;"></td></tr>
+        <tr><td style="padding:0 50px;"><hr style="border:none; border-top:1px solid #e5ded4;"></td></tr>
+        <tr><td style="height:22px;"></td></tr>
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:20px; color:#7a5636; font-weight:bold;">Cancelled booking</div>
+          </td>
+        </tr>
+        <tr><td style="height:16px;"></td></tr>
+        <tr>
+          <td style="padding:0 50px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3eee6; border-radius:8px;">
+              <tr>
+                <td style="padding:22px 26px;">
+                  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:Arial, sans-serif; font-size:15px; color:#2b2b2b;">
+                    <tr>
+                      <td width="28" valign="middle" style="padding:8px 0;">📌</td>
+                      <td width="95" valign="middle" style="padding:8px 0; font-weight:bold;">Event:</td>
+                      <td valign="middle" style="padding:8px 0;">${event.event_name}</td>
+                    </tr>
+                    <tr>
+                      <td valign="middle" style="padding:8px 0;">📅</td>
+                      <td valign="middle" style="padding:8px 0; font-weight:bold;">Date:</td>
+                      <td valign="middle" style="padding:8px 0;">${eventDate}</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr><td style="height:36px;"></td></tr>
+        <tr><td style="padding:0 50px;"><hr style="border:none; border-top:1px solid #e5ded4;"></td></tr>
+        <tr><td style="height:20px;"></td></tr>
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:15px; color:#5c5c5c; line-height:24px;">
+              We hope to see you at a future gathering. You're always welcome here.<br><br>
+              Browse upcoming experiences at <a href="https://thehouseofmore.com/experiences" style="color:#946a49 !important; text-decoration:none;">thehouseofmore.com</a>. New events are added regularly.
+            </div>
+          </td>
+        </tr>
+        <tr><td style="height:30px;"></td></tr>
+        <tr>
+          <td align="center" style="padding:0 50px;">
+            <a href="https://thehouseofmore.com/experiences" style="display:inline-block; background-color:#946a49; color:#ffffff !important; text-decoration:none; font-family:Arial, sans-serif; font-size:14px; padding:14px 28px; border-radius:4px;">Explore Upcoming Events →</a>
+          </td>
+        </tr>
+        <tr><td style="height:30px;"></td></tr>
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#2b2b2b; line-height:22px;">
+              <em>With warmth,</em><br>
+              <strong>The House of More Team</strong>
+            </div>
+          </td>
+        </tr>
+        <tr><td style="height:48px;"></td></tr>
+        <tr>
+          <td align="center" style="background-color:#f7f3ed; padding:18px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; color:#8c7a64;">© House of More 2026</div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>`;
+  }
 
   const emailRes = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -427,7 +546,7 @@ async function handleSendRsvpEmail(request, env) {
     body: JSON.stringify({
       from: "onboarding@resend.dev",
       to: member.email,
-      subject: `You're registered — ${event.event_name}`,
+      subject,
       html,
     }),
   });
@@ -438,8 +557,8 @@ async function handleSendRsvpEmail(request, env) {
     return new Response(JSON.stringify({ error: errText }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
 
-  console.log(`[RSVP EMAIL] Sent to ${member.email} for event ${event.event_name}`);
-  return new Response(JSON.stringify({ ok: true, email: member.email }), { status: 200, headers: { "Content-Type": "application/json" } });
+  console.log(`[RSVP EMAIL] ${emailType} sent to ${member.email} for event ${event.event_name}`);
+  return new Response(JSON.stringify({ ok: true, emailType, email: member.email }), { status: 200, headers: { "Content-Type": "application/json" } });
 }
 
 async function handleMemberstackAddPlan(request, env) {
