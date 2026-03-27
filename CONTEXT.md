@@ -47,7 +47,7 @@ CORS allowed origins: `https://www.thehouseofmore.com`, `https://thehouseofmore.
 - `POST /member-profile-update-supabase` — updates `member_profiles` (PATCH) + `member_questionnaire` (UPSERT) from profile form payload. Splits fields using `PROFILE_FIELDS` and `QUESTIONNAIRE_FIELDS` constants.
 - `POST /memberstack-add-plan` — called by Supabase DB webhook on `member_profiles` INSERT → adds `pln_members-5kbh0gjx` to member in Memberstack
 - `POST /event-data` — fetches event from `events_with_capacity` view by `event_slug` + member plan info from Memberstack in parallel. RSVPs (with embedded `member_profiles`: first_name, last_name, email, member_id) only fetched and returned if member has admin or facilitator plan. Returns `{ event, rsvps, current_capacity, member }`.
-- `POST /member-rsvp-supabase` — handles RSVP booking, cancel, waiting-list for members. Writes `member` boolean to `event_rsvps`.
+- `POST /member-rsvp-supabase` — handles RSVP booking, cancel, waiting-list for members. Writes `member` boolean to `event_rsvps`. Returns `{ message, success, alreadyBooked? }`. Guards: already booked (booked/waitlist) → `success: false, alreadyBooked: true`; prior cancellation → `success: false` (no re-booking allowed, must email info@thehouseofmore.com); event not found → `success: false`.
 - `POST /send-rsvp-email` — called by Supabase DB webhook on `event_rsvps` INSERT (booking confirmation) and UPDATE (cancellation). Fetches event + member from Supabase, sends HTML email via Resend. Skips non-members and non-booking statuses. `booking_status` values: `"booked"` (confirmed), `"waitlist"`, `"canceled"` — worker writes these, NOT `"booking"`/`"waiting-list"` (those are frontend-only terms).
 - ~~`POST /webflow-event-sync`~~ — removed from Worker, replaced by Supabase Edge Function below
 
@@ -169,8 +169,8 @@ Note: `rsvps` and `donations` return a skeleton object with null values when emp
 ## member-compiled-supabase.js — Current State
 
 ### Sections 1–5 (navigation, UI)
-1. Tab navigation — `.app-button` / `.workspace-tab` shared class switching, sessionStorage force-clicks
-2. Trigger my events after cancel — pageshow → polls for `#my-events` button
+1. Tab navigation — `.app-button` / `.workspace-tab` shared class switching, sessionStorage force-clicks: `forceClickProfile`, `forceClickDonations`, `forceClickMyEvents`
+2. Trigger my events after RSVP/cancel — `pageshow`: if `triggerMyEvents` set + `e.persisted` (bfcache), converts to `forceClickMyEvents` + reloads for fresh profile fetch; otherwise polls for `#my-events` button directly
 3. Donation landing param — reads `?donation=` / `?forceRefetch=`, clears URL, switches tab
 4. Count days — shows "Today / Tomorrow / In N days" on event cards
 5. Calendar view — month grid, popover on hover, list/calendar toggle
@@ -232,8 +232,11 @@ Note: `rsvps` and `donations` return a skeleton object with null values when emp
 ### Section 4 — RSVP flow
 - Modal open/close, confirm → `POST /member-rsvp-supabase` with `{ event_slug, member_id, status }`
 - Non-member booking form → `POST /member-rsvp-supabase` with `member: false`
-- Answer modal shows response message on success
-- Cancel answer modal → `sessionStorage.triggerMyEvents = true` + `history.back()`
+- `showAnswerModal(message, goBack, alertClass)` — shows `.modal-answer`, sets `.message-respond` text, resets then shows `.alert1/.alert2/.alert3` inside modal, adds `alertClass` to `.modal-content`
+  - `alert1` — already booked (`success: false, alreadyBooked: true`)
+  - `alert2` — error / prior cancellation / event not found (`success: false`)
+  - `alert3` — booking/waitlist/cancel success (`success: true`)
+- `answerShouldGoBack` flag — `true` only on `success: true`; close button calls `history.back()` + sets `triggerMyEvents` only when flag is true, otherwise just closes modal
 
 ### Section 5 — QR check-in scanner
 - Camera-based QR scanner for facilitator check-in
