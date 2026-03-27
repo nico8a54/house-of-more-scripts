@@ -544,21 +544,6 @@
         document.querySelector(`#${id}`)?.addEventListener("click", () => sendAction(action));
       });
 
-      // --- FETCH MEMBER DETAILS ---
-      const fetchMemberDetails = async (memberId) => {
-        try {
-          const res = await fetch("https://houseofmore.nico-97c.workers.dev/admin-get-member", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ member_id: memberId })
-          });
-          return await res.json();
-        } catch (error) {
-          console.error("[ADMIN] Member details error:", error);
-          return null;
-        }
-      };
-
       // --- FETCH ALL DATA (members + donations) ---
       const memberId = document.querySelector('[data-ms-member="id"]')?.textContent?.trim();
       if (!memberId) { console.warn("[ADMIN] member_id not available yet"); return; }
@@ -611,50 +596,51 @@
       const applicantTemplate = document.querySelector(".list-block-template.applicant");
       const facilitatorTemplate = document.querySelector(".list-block-template.facilitators");
 
-      const attachOpenModal = (clone, memberId, effectivePlan) => {
-        clone.querySelector(".icon-wrapper.view-record")?.addEventListener("click", async () => {
-          activeMemberId = memberId;
+      const populateModal = (member) => {
+        activeMemberId = member.member_id;
+        const q      = (member.member_questionnaire || [])[0] || {};
+        const status = (member.application_status || "").toLowerCase();
+
+        // --- Profile fields ---
+        setField(applicantModal, "name",           member.first_name);
+        setField(applicantModal, "last_name",      member.last_name);
+        setField(applicantModal, "email",          member.email);
+        setField(applicantModal, "phone",          member.phone);
+        setField(applicantModal, "location",       member.location);
+        setField(applicantModal, "marital_status", member.marital_status);
+        setField(applicantModal, "birthday",       member.birthday);
+        setField(applicantModal, "submitted_at",   member.date_of_request ? new Date(member.date_of_request).toLocaleDateString() : "");
+
+        // gender uses data-ms-member, not data-field
+        const genderEl = applicantModal.querySelector('[data-ms-member="gender"]');
+        if (genderEl) genderEl.textContent = member.gender ?? "";
+
+        // --- Questionnaire fields ---
+        setField(applicantModal, "where_are_you_on_your_path",                   q.where_are_you_on_your_path);
+        setField(applicantModal, "how_can_we_support_you",                       q.how_can_we_support_you);
+        setField(applicantModal, "how_did_you_hear_about_the_house_of_more",     q.how_did_you_hear_about_the_house_of_more);
+        setField(applicantModal, "have_you_been_with_the_house_of_more",         q.have_you_been_with_the_house_of_more);
+        setField(applicantModal, "how_many_events_have_you_attended",            q.how_many_events_have_you_attended_at_the_hom);
+        setField(applicantModal, "how_many_events_per_month_can_you_participate", q.how_many_events_per_month_can_you_participate);
+        setField(applicantModal, "what_draws_you_to_the_house_of_more",          q.what_draws_you_to_the_house_of_more);
+        setField(applicantModal, "community_and_contribution",                   q.community_and_contribution);
+        setField(applicantModal, "skills_to_share",                              q.skills_to_share);
+        setField(applicantModal, "is_there_anything_else",                       q.is_there_anything_else);
+        setField(applicantModal, "do_you_feel_aligned_with_the_house_of_more",   q.do_you_feel_aligned_with_the_house_of_more);
+        setField(applicantModal, "i_commit_to_respecting_the_house_of_more",     q.i_commit_to_respecting_the_house_of_more != null ? String(q.i_commit_to_respecting_the_house_of_more) : "");
+
+        // --- Status tag ---
+        applicantModal.querySelectorAll('.status-tag[data-extra-plan]').forEach(el => el.remove());
+        const modalStatusTag = applicantModal.querySelector('[data-field="application_status"]');
+        applyStatusClass(modalStatusTag, status);
+        if (modalStatusTag) modalStatusTag.textContent = status;
+        updateActionButtons(status);
+      };
+
+      const attachOpenModal = (clone, member) => {
+        clone.querySelector(".icon-wrapper.view-record")?.addEventListener("click", () => {
           applicantModal?.classList.remove("hide");
-          const details = await fetchMemberDetails(memberId);
-          if (!details) return;
-
-          const q      = details.questionnaire || {};
-          const status = details.application_status || effectivePlan || "";
-
-          // --- Profile fields ---
-          setField(applicantModal, "name",           details.first_name);
-          setField(applicantModal, "last_name",      details.last_name);
-          setField(applicantModal, "email",          details.email);
-          setField(applicantModal, "phone",          details.phone);
-          setField(applicantModal, "location",       details.location);
-          setField(applicantModal, "marital_status", details.marital_status);
-          setField(applicantModal, "birthday",       details.birthday);
-          setField(applicantModal, "submitted_at",   details.date_of_request ? new Date(details.date_of_request).toLocaleDateString() : "");
-
-          // gender uses data-ms-member, not data-field
-          const genderEl = applicantModal.querySelector('[data-ms-member="gender"]');
-          if (genderEl) genderEl.textContent = details.gender ?? "";
-
-          // --- Questionnaire fields ---
-          setField(applicantModal, "where_are_you_on_your_path",                  q.where_are_you_on_your_path);
-          setField(applicantModal, "how_can_we_support_you",                      q.how_can_we_support_you);
-          setField(applicantModal, "how_did_you_hear_about_the_house_of_more",    q.how_did_you_hear_about_the_house_of_more);
-          setField(applicantModal, "have_you_been_with_the_house_of_more",        q.have_you_been_with_the_house_of_more);
-          setField(applicantModal, "how_many_events_have_you_attended",           q.how_many_events_have_you_attended_at_the_hom);
-          setField(applicantModal, "how_many_events_per_month_can_you_participate", q.how_many_events_per_month_can_you_participate);
-          setField(applicantModal, "what_draws_you_to_the_house_of_more",         q.what_draws_you_to_the_house_of_more);
-          setField(applicantModal, "community_and_contribution",                  q.community_and_contribution);
-          setField(applicantModal, "skills_to_share",                             q.skills_to_share);
-          setField(applicantModal, "is_there_anything_else",                      q.is_there_anything_else);
-          setField(applicantModal, "do_you_feel_aligned_with_the_house_of_more",  q.do_you_feel_aligned_with_the_house_of_more);
-          setField(applicantModal, "i_commit_to_respecting_the_house_of_more",    q.i_commit_to_respecting_the_house_of_more != null ? String(q.i_commit_to_respecting_the_house_of_more) : "");
-
-          // --- Status tag ---
-          applicantModal.querySelectorAll('.status-tag[data-extra-plan]').forEach(el => el.remove());
-          const modalStatusTag = applicantModal.querySelector('[data-field="application_status"]');
-          applyStatusClass(modalStatusTag, status);
-          if (modalStatusTag) modalStatusTag.textContent = status;
-          updateActionButtons(status);
+          populateModal(member);
         });
       };
 
@@ -679,7 +665,7 @@
         setField(clone, "application_status", "pending");
         setInitials(clone, member.first_name, member.last_name);
         applyStatusClass(clone.querySelector(".status-tag"), "pending");
-        attachOpenModal(clone, member.member_id, "pending");
+        attachOpenModal(clone, member);
         applicantParent.appendChild(clone);
       });
 
