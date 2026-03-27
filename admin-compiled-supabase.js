@@ -561,6 +561,7 @@
 
       // --- FETCH ALL DATA (members + donations) ---
       const memberId = document.querySelector('[data-ms-member="id"]')?.textContent?.trim();
+      if (!memberId) { console.warn("[ADMIN] member_id not available yet"); return; }
       const adminDataRes = await fetch("https://houseofmore.nico-97c.workers.dev/admin-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

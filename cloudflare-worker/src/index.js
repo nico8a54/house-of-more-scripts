@@ -1074,23 +1074,27 @@ async function handleAdminApproveMember(request, env) {
 }
 
 // ─── Admin data (verify admin, fetch all members + donations) ────────────────
-async function handleAdminData(request, env) {
+async function handleAdminData(request, env, origin) {
+  const cors = corsHeaders(origin, env);
+
   let payload;
-  try { payload = await request.json(); } catch { return new Response("Bad request", { status: 400 }); }
+  try { payload = await request.json(); } catch {
+    return new Response("Bad request", { status: 400, headers: cors });
+  }
 
   const { member_id } = payload;
-  if (!member_id) return new Response("member_id required", { status: 400 });
+  if (!member_id) return new Response("member_id required", { status: 400, headers: cors });
 
   // Verify caller has admin plan
   const msVerifyRes = await fetch(
     `https://admin.memberstack.com/members/${encodeURIComponent(member_id)}`,
     { headers: { "x-api-key": env.MEMBERSTACK_KEY } }
   );
-  if (!msVerifyRes.ok) return new Response("Member not found", { status: 404 });
+  if (!msVerifyRes.ok) return new Response("Member not found", { status: 404, headers: cors });
   const msVerifyJson = await msVerifyRes.json();
   const callerConnections = parsePlanConnections(msVerifyJson.data?.planConnections || []);
   if (!callerConnections.some(c => c.planId === PLAN_IDS.admin)) {
-    return new Response("Forbidden", { status: 403 });
+    return new Response("Forbidden", { status: 403, headers: cors });
   }
 
   // Start donations fetch in parallel with member pagination
@@ -1126,7 +1130,7 @@ async function handleAdminData(request, env) {
   console.log(`[ADMIN DATA] ${allMembers.length} members, ${donations.length} donations`);
   return new Response(JSON.stringify({ members: allMembers, donations }), {
     status: 200,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...cors },
   });
 }
 
@@ -1451,7 +1455,7 @@ export default {
         return new Response("Server misconfiguration", { status: 500 });
       }
       try {
-        return await handleAdminData(request, env);
+        return await handleAdminData(request, env, origin);
       } catch (err) {
         console.error(err);
         return new Response(JSON.stringify({ error: err.message }), {
