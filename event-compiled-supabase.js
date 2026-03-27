@@ -136,6 +136,7 @@
         const row = template.cloneNode(true);
         row.classList.remove("hide");
         const profile = rsvp.member_profiles || {};
+        row.dataset.rsvpId = rsvp.id || "";
         const fields = {
           first_name:     [profile.first_name, profile.last_name].filter(Boolean).join(" "),
           email:          profile.email || "",
@@ -458,39 +459,18 @@
 
   function updateAttendantRow(data) {
     const rsvpId = data?.rsvp_record_id;
-    const memberId = data?.id;
-    const useEmail = !memberId && data?.member === false && data?.email;
+    if (!rsvpId) return;
 
-    function applyChecked(row) {
-      renderFields(row, data);
-      const status = (data.booking_status || "").toLowerCase();
-      const checkEl = row.querySelector(".check");
-      const infoWrapper = row.querySelector(".attenda-info-wrapper");
-      if (status === "checked") {
-        if (checkEl) checkEl.classList.remove("hide");
-        if (infoWrapper) infoWrapper.classList.add("checked");
-      }
-    }
+    const row = document.querySelector(`.attendants-row[data-rsvp-id="${rsvpId}"]`);
+    if (!row) return;
 
-    if (rsvpId) {
-      document.querySelectorAll('[data-field="rsvp_record_id"]').forEach((el) => {
-        if (el.textContent.trim() !== rsvpId) return;
-        const row = el.closest(".attendants-row");
-        if (row) applyChecked(row);
-      });
-    } else if (memberId) {
-      document.querySelectorAll('[data-field="id"]').forEach((idEl) => {
-        if (idEl.textContent.trim() !== memberId) return;
-        const row = idEl.closest(".attendants-row");
-        if (row) applyChecked(row);
-      });
-    } else if (useEmail) {
-      document.querySelectorAll('[data-field="email"]').forEach((emailEl) => {
-        if (emailEl.textContent.trim().toLowerCase() !== data.email.toLowerCase()) return;
-        const row = emailEl.closest(".attendants-row");
-        if (row) applyChecked(row);
-      });
-    }
+    const checkEl = row.querySelector(".check");
+    const infoWrapper = row.querySelector(".attenda-info-wrapper");
+    const statusEl = row.querySelector('[data-field="booking_status"]');
+
+    if (checkEl) checkEl.classList.remove("hide");
+    if (infoWrapper) infoWrapper.classList.add("checked");
+    if (statusEl) statusEl.textContent = "checked";
   }
 
   async function fireWebhook(qrText) {
