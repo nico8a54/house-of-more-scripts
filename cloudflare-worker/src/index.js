@@ -864,7 +864,6 @@ async function handleFacilitatorCheckin(payload, env) {
   const { qr_text } = payload;
   if (!qr_text) throw new Error("qr_text is required");
 
-  const SUPABASE_URL = env.SUPABASE_URL || "https://qgaqxftvuosgdoqvkxet.supabase.co";
   const sbHeaders = {
     "apikey":        env.SUPABASE_KEY,
     "Authorization": `Bearer ${env.SUPABASE_KEY}`,
