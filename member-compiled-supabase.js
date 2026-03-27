@@ -41,6 +41,18 @@
       if (donationsBtn) setTimeout(() => donationsBtn.click(), 0);
       sessionStorage.removeItem("forceClickDonations");
     }
+
+    const forceMyEvents = sessionStorage.getItem("forceClickMyEvents");
+    if (forceMyEvents === "true") {
+      sessionStorage.removeItem("forceClickMyEvents");
+      let tries = 0;
+      const timer = setInterval(() => {
+        tries++;
+        const btn = document.getElementById("my-events");
+        if (btn) { btn.click(); clearInterval(timer); return; }
+        if (tries >= 30) clearInterval(timer);
+      }, 200);
+    }
   });
 
   /*=========================================================
@@ -48,8 +60,19 @@
     src: trigger-my-events.js
     Fires on pageshow to auto-click #my-events via sessionStorage flag
   =========================================================*/
-  window.addEventListener("pageshow", () => {
-    console.log("[MEMBER] pageshow fired. triggerMyEvents flag:", sessionStorage.getItem("triggerMyEvents"));
+  window.addEventListener("pageshow", (e) => {
+    console.log("[MEMBER] pageshow fired. triggerMyEvents flag:", sessionStorage.getItem("triggerMyEvents"), "persisted:", e.persisted);
+    if (sessionStorage.getItem("triggerMyEvents") !== "true") return;
+
+    if (e.persisted) {
+      // Page restored from bfcache — data is stale. Reload to re-fetch profile.
+      sessionStorage.setItem("forceClickMyEvents", "true");
+      sessionStorage.removeItem("triggerMyEvents");
+      location.reload();
+      return;
+    }
+
+    // Not bfcache — DOMContentLoaded already ran with fresh data. Poll for button.
     let tries = 0;
     const timer = setInterval(() => {
       tries++;
