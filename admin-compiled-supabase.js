@@ -616,8 +616,6 @@
       const applicantTemplate = document.querySelector(".list-block-template.applicant");
       const facilitatorTemplate = document.querySelector(".list-block-template.facilitators");
 
-      let pendingCount = 0, approvedCount = 0, frozenCount = 0, rejectedCount = 0, facilitatorCount = 0;
-
       const attachOpenModal = (clone, memberId, effectivePlan, connections) => {
         clone.querySelector(".icon-wrapper.view-record")?.addEventListener("click", async () => {
           activeMemberId = memberId;
