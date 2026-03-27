@@ -550,6 +550,21 @@
       });
       console.log("[ADMIN] Slug pairs (CMS ↔ Supabase):", slugPairs);
 
+      // Count booked RSVPs per event_id
+      const bookedByEventId = {};
+      rsvps.forEach(rsvp => {
+        if (rsvp.booking_status === "booked" && rsvp.event_id) {
+          bookedByEventId[rsvp.event_id] = (bookedByEventId[rsvp.event_id] || 0) + 1;
+        }
+      });
+
+      // Render booked count into each .facilitator-event row
+      slugPairs.forEach(({ supabaseEvent, el }) => {
+        if (!supabaseEvent || !el) return;
+        const bookedEl = el.querySelector('[data-field="booked"]');
+        if (bookedEl) bookedEl.textContent = bookedByEventId[supabaseEvent.id] || 0;
+      });
+
       let activeCount = 0, facilitatorCount = 0, frozenCount = 0, pendingCount = 0, rejectedCount = 0, adminCount = 0;
 
       members.forEach(member => {
