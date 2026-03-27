@@ -48,12 +48,13 @@ CORS allowed origins: `https://www.thehouseofmore.com`, `https://thehouseofmore.
 - `POST /memberstack-add-plan` — called by Supabase DB webhook on `member_profiles` INSERT → adds `pln_members-5kbh0gjx` to member in Memberstack
 - `POST /event-data` — fetches event from `events_with_capacity` view by `event_slug` + member plan info from Memberstack in parallel. RSVPs (with embedded `member_profiles`: first_name, last_name, email, member_id) only fetched and returned if member has admin or facilitator plan. Returns `{ event, rsvps, current_capacity, member }`.
 - `POST /member-rsvp-supabase` — handles RSVP booking, cancel, waiting-list for members. Writes `member` boolean to `event_rsvps`. Returns `{ message, success, alreadyBooked? }`. Guards: already booked (booked/waitlist) → `success: false, alreadyBooked: true`; prior cancellation → `success: false` (no re-booking allowed, must email info@thehouseofmore.com); event not found → `success: false`.
+- `POST /facilitator-checkin-supabase` — QR check-in for facilitators. Payload: `{ qr_text, event_slug }`. `qr_text` is the `event_rsvps.id` UUID encoded in the member's confirmation email QR. Looks up RSVP by UUID, validates `events.event_slug` matches payload (rejects cross-event QRs), guards already-checked and canceled states, patches `booking_status` → `"checked"`, fetches `member_profiles` for display name/email. Returns object `{ member_name, id, email, rsvp_record_id, booking_status: "checked" }` on success, or a plain string message on rejection.
 - `POST /send-rsvp-email` — called by Supabase DB webhook on `event_rsvps` INSERT (booking confirmation) and UPDATE (cancellation). Fetches event + member from Supabase, sends HTML email via Resend. Skips non-members and non-booking statuses. `booking_status` values: `"booked"` (confirmed), `"waitlist"`, `"canceled"` — worker writes these, NOT `"booking"`/`"waiting-list"` (those are frontend-only terms).
 - ~~`POST /webflow-event-sync`~~ — removed from Worker, replaced by Supabase Edge Function below
 
 ### Make.com routes (legacy — being phased out)
 - `/member-profile-update`, `/member-list-events`, `/member-rsvp`, `/member-messages-load`, `/member-message-action`
-- `/facilitator-list-events`, `/facilitator-checkin`, `/facilitator-close-event`
+- `/facilitator-list-events`, `/facilitator-close-event` (~~`/facilitator-checkin`~~ migrated to Supabase)
 - `/admin-list-members`, `/admin-get-member`, `/admin-approve-member`, `/admin-list-rsvp`, `/admin-list-event`, `/admin-messages`, `/admin-message-center`
 - `/donation-checkout`, `/donation-list-all`, `/donation-list-mine`, `/donation-confirm`
 - `/list-events`, `/closed-event`, `/questionnaire-create-member`, `/home-review`
@@ -240,8 +241,12 @@ Note: `rsvps` and `donations` return a skeleton object with null values when emp
 
 ### Section 5 — QR check-in scanner
 - Camera-based QR scanner for facilitator check-in
-- Fires `POST /facilitator-checkin` (Make.com route — not yet migrated)
-- On success: calls `updateAttendantRow(data)` to mark row as checked in the DOM
+- Depends on `https://unpkg.com/html5-qrcode` loaded via Webflow page embed before this script
+- Fires `POST /facilitator-checkin-supabase` with `{ qr_text, event_slug }` — `event_slug` from `window.location.pathname`
+- String response → rejected UI (`.reader` gets `.rejected`, `#answer` shows message)
+- Object response → accepted UI (`.reader` gets `.accepted`, `#answer` shows `member_name`)
+- On success: `updateAttendantRow(data)` finds the row via `data-rsvp-id` attribute (set at render time from `rsvp.id`), adds `.checked` to `.attenda-info-wrapper`, shows `.check` element, updates `[data-field="booking_status"]` text
+- Each attendant row gets `data-rsvp-id` set to the RSVP UUID at render time (Section 3)
 
 ---
 
