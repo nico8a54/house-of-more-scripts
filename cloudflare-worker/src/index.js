@@ -234,6 +234,214 @@ async function handleWebflowEventSync(request, env) {
   });
 }
 
+async function handleSendRsvpEmail(request, env) {
+  const secret = request.headers.get("x-webhook-secret");
+  if (!secret || secret !== env.SUPABASE_WEBHOOK_SECRET) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return new Response("Bad request", { status: 400 });
+  }
+
+  const record = payload?.record;
+  if (!record) return new Response(JSON.stringify({ ok: true, skipped: "no record" }), { status: 200, headers: { "Content-Type": "application/json" } });
+
+  // Only send for confirmed bookings
+  if (record.booking_status !== "booking") {
+    return new Response(JSON.stringify({ ok: true, skipped: `status=${record.booking_status}` }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
+
+  // Skip non-members (no member_id)
+  if (!record.member_id) {
+    return new Response(JSON.stringify({ ok: true, skipped: "non-member" }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
+
+  const SUPABASE_URL = "https://wioktwzioxzgmntgxsme.supabase.co";
+  const headers = { "apikey": env.SUPABASE_KEY, "Authorization": `Bearer ${env.SUPABASE_KEY}` };
+
+  // Fetch event and member in parallel
+  const [eventRes, memberRes] = await Promise.all([
+    fetch(`${SUPABASE_URL}/rest/v1/events?id=eq.${encodeURIComponent(record.event_id)}&select=event_name,event_date,event_location,event_link,facilitator_name,event_slug&limit=1`, { headers }),
+    fetch(`${SUPABASE_URL}/rest/v1/member_profiles?member_id=eq.${encodeURIComponent(record.member_id)}&select=first_name,email&limit=1`, { headers }),
+  ]);
+
+  const events = await eventRes.json();
+  const members = await memberRes.json();
+
+  const event = events?.[0];
+  const member = members?.[0];
+
+  if (!event || !member?.email) {
+    console.error("[RSVP EMAIL] Missing event or member data", { event, member });
+    return new Response(JSON.stringify({ error: "Missing event or member data" }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
+
+  // Format date: "March 27, 2026 at 7:00 PM"
+  const eventDate = event.event_date
+    ? new Date(event.event_date).toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" })
+    : "TBD";
+
+  const qrUrl = `https://quickchart.io/qr?size=300&text=${encodeURIComponent(record.id)}`;
+  const eventUrl = `https://thehouseofmore.com/events-2026/${event.event_slug}`;
+  const locationOrLink = event.event_link || event.event_location || "TBD";
+
+  const html = `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f2f2f2; padding:40px 0;">
+  <tr>
+    <td align="center">
+      <table width="500" cellpadding="0" cellspacing="0" border="0" align="center"
+        style="background-color:#ffffff; border-radius:10px; overflow:hidden;">
+        <tr>
+          <td align="center" style="background-color:#2b1f14; padding:24px 40px;">
+            <div style="font-family:Georgia, serif; font-size:22px; color:#ffffff; letter-spacing:1px;">THE HOUSE OF MORE</div>
+            <a href="https://thehouseofmore.com" style="color:#946a49 !important; text-decoration:none;">thehouseofmore.com</a>
+          </td>
+        </tr>
+        <tr><td style="height:36px;"></td></tr>
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; letter-spacing:2px; color:#8c7a64;">BOOKING CONFIRMATION</div>
+          </td>
+        </tr>
+        <tr><td style="height:14px;"></td></tr>
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:28px; color:#2b2b2b; line-height:34px;">You're in. See you there.</div>
+          </td>
+        </tr>
+        <tr><td style="height:20px;"></td></tr>
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:15px; color:#5c5c5c; line-height:24px;">
+              Dear ${member.first_name},<br><br>
+              Your spot is confirmed for <strong>${event.event_name}</strong>. We're looking forward to having you with us.
+            </div>
+          </td>
+        </tr>
+        <tr><td style="height:32px;"></td></tr>
+        <tr><td style="padding:0 50px;"><hr style="border:none; border-top:1px solid #e5ded4;"></td></tr>
+        <tr><td style="height:22px;"></td></tr>
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:20px; color:#7a5636; font-weight:bold;">Event details</div>
+          </td>
+        </tr>
+        <tr><td style="height:16px;"></td></tr>
+        <tr>
+          <td style="padding:0 50px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3eee6; border-radius:8px;">
+              <tr>
+                <td style="padding:22px 26px;">
+                  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:Arial, sans-serif; font-size:15px; color:#2b2b2b;">
+                    <tr>
+                      <td width="28" valign="middle" style="padding:8px 0;">📌</td>
+                      <td width="95" valign="middle" style="padding:8px 0; font-weight:bold;">Event:</td>
+                      <td valign="middle" style="padding:8px 0;">${event.event_name}</td>
+                    </tr>
+                    <tr>
+                      <td valign="middle" style="padding:8px 0;">📅</td>
+                      <td valign="middle" style="padding:8px 0; font-weight:bold;">Date:</td>
+                      <td valign="middle" style="padding:8px 0;">${eventDate}</td>
+                    </tr>
+                    <tr>
+                      <td valign="middle" style="padding:8px 0;">📍</td>
+                      <td valign="middle" style="padding:8px 0; font-weight:bold;">Location:</td>
+                      <td valign="middle" style="padding:8px 0;">${locationOrLink}</td>
+                    </tr>
+                    <tr>
+                      <td valign="middle" style="padding:8px 0;">👤</td>
+                      <td valign="middle" style="padding:8px 0; font-weight:bold;">Facilitator:</td>
+                      <td valign="middle" style="padding:8px 0;">${event.facilitator_name || "TBD"}</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr><td style="height:36px;"></td></tr>
+        <tr>
+          <td align="center" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#666666; line-height:22px; text-align:center;">
+              Please show the QR code below at the entrance when you arrive.
+            </div>
+          </td>
+        </tr>
+        <tr><td style="height:18px;"></td></tr>
+        <tr>
+          <td align="center">
+            <img src="${qrUrl}" width="200" style="display:block; border:6px solid #f3eee6; border-radius:8px;" />
+          </td>
+        </tr>
+        <tr><td style="height:36px;"></td></tr>
+        <tr>
+          <td align="center" style="padding:0 50px;">
+            <a href="${eventUrl}" style="display:inline-block; background-color:#946a49; color:#ffffff; text-decoration:none; font-family:Arial, sans-serif; font-size:14px; padding:14px 28px; border-radius:4px;">View Event Details →</a>
+          </td>
+        </tr>
+        <tr><td style="height:36px;"></td></tr>
+        <tr><td style="padding:0 50px;"><hr style="border:none; border-top:1px solid #e5ded4;"></td></tr>
+        <tr><td style="height:20px;"></td></tr>
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:18px; color:#7a5636; font-weight:bold;">A note on cancellations</div>
+          </td>
+        </tr>
+        <tr><td style="height:12px;"></td></tr>
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#5c5c5c; line-height:22px;">
+              If your plans change, you can cancel your spot up to 2 hours before the event begins through your member portal. After that window, cancellations are no longer possible.
+            </div>
+          </td>
+        </tr>
+        <tr><td style="height:30px;"></td></tr>
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#2b2b2b; line-height:22px;">
+              <em>With warmth,</em><br>
+              <strong>The House of More Team</strong>
+            </div>
+          </td>
+        </tr>
+        <tr><td style="height:48px;"></td></tr>
+        <tr>
+          <td align="center" style="background-color:#f7f3ed; padding:18px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; color:#8c7a64;">© House of More 2026</div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>`;
+
+  const emailRes = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: "onboarding@resend.dev",
+      to: member.email,
+      subject: `You're registered — ${event.event_name}`,
+      html,
+    }),
+  });
+
+  if (!emailRes.ok) {
+    const errText = await emailRes.text();
+    console.error("[RSVP EMAIL] Resend error:", errText);
+    return new Response(JSON.stringify({ error: errText }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
+
+  console.log(`[RSVP EMAIL] Sent to ${member.email} for event ${event.event_name}`);
+  return new Response(JSON.stringify({ ok: true, email: member.email }), { status: 200, headers: { "Content-Type": "application/json" } });
+}
+
 async function handleMemberstackAddPlan(request, env) {
   // Verify the request is from Supabase
   const secret = request.headers.get("x-webhook-secret");
@@ -601,6 +809,23 @@ export default {
       }
       try {
         return await handleWebflowEventSync(request, env);
+      } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // Email confirmation — called by Supabase webhook on event_rsvps INSERT
+    if (path === "/send-rsvp-email") {
+      if (!env.RESEND_API_KEY || !env.SUPABASE_KEY || !env.SUPABASE_WEBHOOK_SECRET) {
+        console.error("RESEND_API_KEY, SUPABASE_KEY or SUPABASE_WEBHOOK_SECRET is not set");
+        return new Response("Server misconfiguration", { status: 500 });
+      }
+      try {
+        return await handleSendRsvpEmail(request, env);
       } catch (err) {
         console.error(err);
         return new Response(JSON.stringify({ error: err.message }), {
