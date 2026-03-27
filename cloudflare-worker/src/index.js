@@ -254,12 +254,12 @@ async function handleSendRsvpEmail(request, env) {
   if (!record) return new Response(JSON.stringify({ ok: true, skipped: "no record" }), { status: 200, headers: { "Content-Type": "application/json" } });
 
   // Determine which email to send
-  // INSERT + booking_status = "booking" → confirmation
-  // UPDATE + old booking → canceled → cancellation
+  // INSERT + booking_status = "booked" → confirmation
+  // UPDATE + old "booked" → "canceled" → cancellation
   let emailType = null;
-  if (eventType === "INSERT" && record.booking_status === "booking") {
+  if (eventType === "INSERT" && record.booking_status === "booked") {
     emailType = "confirmation";
-  } else if (eventType === "UPDATE" && oldRecord?.booking_status === "booking" && record.booking_status === "canceled") {
+  } else if (eventType === "UPDATE" && oldRecord?.booking_status === "booked" && record.booking_status === "canceled") {
     emailType = "cancellation";
   }
 
