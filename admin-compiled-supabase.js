@@ -571,6 +571,13 @@
       });
 
       const grandTotalCents = donations.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+
+      // Per-member donation totals (keyed by member_id)
+      const donationsByMember = {};
+      donations.forEach(d => {
+        if (!d.member_id) return;
+        donationsByMember[d.member_id] = (donationsByMember[d.member_id] || 0) + (Number(d.amount) || 0);
+      });
       const formatUSD = n => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 
       const setCounter = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
@@ -669,6 +676,34 @@
         applicantParent.appendChild(clone);
       });
 
+      // --- RENDER MEMBERS (approved, rejected, frozen) ---
+      if (memberTemplate) memberTemplate.style.display = "none";
+      const memberParent = memberTemplate?.parentElement;
+
+      const MEMBER_STATUSES = new Set(["approved", "rejected", "frozen"]);
+
+      members.forEach(member => {
+        const status = (member.application_status || "").toLowerCase();
+        if (!MEMBER_STATUSES.has(status)) return;
+        if (!memberTemplate || !memberParent) return;
+
+        const clone = memberTemplate.cloneNode(true);
+        clone.setAttribute("data-clone", "true");
+        clone.style.display = "grid";
+        setField(clone, "first_name",         member.first_name);
+        setField(clone, "last_name",          member.last_name);
+        setField(clone, "email",              member.email);
+        setField(clone, "phone",              member.phone);
+        setField(clone, "createdAt",          member.date_of_request ? new Date(member.date_of_request).toLocaleDateString() : "");
+        setField(clone, "member-id",          member.member_id);
+        setField(clone, "application_status", status);
+        const memberTotal = donationsByMember[member.member_id] || 0;
+        setField(clone, "member-donations",   memberTotal > 0 ? formatUSD(memberTotal / 100) : "--");
+        applyStatusClass(clone.querySelector(".status-tag"), status);
+        attachOpenModal(clone, member);
+        memberParent.appendChild(clone);
+      });
+
       // --- RENDER FACILITATORS ---
       members.forEach(member => {
         const facilitatorPlan = (member.planConnections || []).find(p =>
@@ -694,9 +729,6 @@
         parent.appendChild(clone);
       });
 
-      // counters already rendered above
-      if (memberTemplate) memberTemplate.style.display = "none";
-      if (applicantTemplate) applicantTemplate.style.display = "none";
       if (facilitatorTemplate) facilitatorTemplate.style.display = "none";
 
 
