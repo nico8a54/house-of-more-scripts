@@ -19,6 +19,8 @@ Key files:
 - `event-compiled.js` — old event page JS (Make.com based, replaced)
 - `questionnaire-compiled.js` — questionnaire (Make.com flow)
 - `questionnaire-compiled-supabase.js` — questionnaire (Supabase flow, working)
+- `admin-compiled.js` — admin page JS (Make.com based, current live)
+- `admin-compiled-supabase.js` — admin page JS (Supabase migration in progress)
 
 ---
 
@@ -247,6 +249,39 @@ Note: `rsvps` and `donations` return a skeleton object with null values when emp
 - Object response → accepted UI (`.reader` gets `.accepted`, `#answer` shows `member_name`)
 - On success: `updateAttendantRow(data)` finds the row via `data-rsvp-id` attribute (set at render time from `rsvp.id`), adds `.checked` to `.attenda-info-wrapper`, shows `.check` element, updates `[data-field="booking_status"]` text
 - Each attendant row gets `data-rsvp-id` set to the RSVP UUID at render time (Section 3)
+
+---
+
+## admin-compiled-supabase.js — Current State
+
+Base copy of `admin-compiled.js` — migration in progress. Deploy URL pattern:
+`https://cdn.jsdelivr.net/gh/nico8a54/house-of-more-scripts@{commit}/admin-compiled-supabase.js`
+
+### Migration status
+| Section | Description | Status |
+|---------|-------------|--------|
+| 1 | Tab navigation + sessionStorage force-clicks | ✅ no external calls |
+| 2 | Filter by status (Approved/Rejected/Frozen) | ✅ no external calls |
+| 3 | Add `?admin=true` to event links | ✅ no external calls |
+| 4 | Admin donation history (logged-in admin) | ⏳ Make.com `/donation-list-mine` |
+| 5 | Message Center | ⏳ Make.com `/admin-message-center` |
+| 6 | Event Manager button | ⏳ Make.com `/admin-list-rsvp` + `/admin-messages` |
+| 7 | Main render: member list + donations | ⏳ Make.com `/admin-list-members`, `/admin-get-member`, `/admin-approve-member`, `/donation-list-all` |
+| 8 | Admin onboarding walkthrough | ✅ no external calls |
+
+### Planned architecture (Supabase migration)
+**Single `/admin-dashboard` worker route** — called once on page load, parallel fetches:
+1. Memberstack API paginated member list → Members, Applicants, Facilitators tabs + Dashboard counters
+2. Supabase `donations` → per-member totals + grand total
+3. Supabase `events_with_capacity` → event list with capacity, checked, booked, canceled, waitlist, spots available, status
+
+**`/admin-member-supabase` worker route** — called on modal open (view icon click):
+- Supabase `member_profiles` + `member_questionnaire` by `member_id`
+- Returns merged flat object for modal population
+
+**Admin Event Manager columns** — to match Facilitator Events view: Event Name, Date, Capacity, Checked, Booked, Canceled, No-show, Spots Available, Status, View
+
+**Actions (approve/reject/freeze/restore)** — stay as-is via existing `/admin-approve-member` Make.com route
 
 ---
 
