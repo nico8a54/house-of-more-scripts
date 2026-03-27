@@ -539,35 +539,41 @@
       console.log("[ADMIN] All events:", events);
       console.log("[ADMIN] All RSVPs:", rsvps);
 
-      // Pair Supabase events with CMS .facilitator-event elements by slug
-      const eventsBySlug = {};
-      events.forEach(ev => { if (ev.event_slug) eventsBySlug[ev.event_slug] = ev; });
-      console.log("[ADMIN] Supabase slugs:", Object.keys(eventsBySlug));
-
-      const slugPairs = [];
-      document.querySelectorAll(".facilitator-event").forEach(item => {
-        const cmsSlug = item.getAttribute('data-field')?.trim();
-        slugPairs.push({ cmsSlug, supabaseEvent: eventsBySlug[cmsSlug] || null, el: item });
-      });
-      console.log("[ADMIN] CMS slugs:", slugPairs.map(p => p.cmsSlug));
-      console.log("[ADMIN] Slug pairs (CMS ↔ Supabase):", slugPairs);
-
-      // Count booked RSVPs per event_id
-      const bookedByEventId = {};
+      // Count RSVPs per event_id by status
+      const rsvpsByEvent = {};
       rsvps.forEach(rsvp => {
-        if (rsvp.booking_status === "booked" && rsvp.event_id) {
-          bookedByEventId[rsvp.event_id] = (bookedByEventId[rsvp.event_id] || 0) + 1;
-        }
+        const eid = rsvp.event_id;
+        if (!eid) return;
+        if (!rsvpsByEvent[eid]) rsvpsByEvent[eid] = { booked: 0, checked: 0, canceled: 0, "no-show": 0 };
+        const s = rsvp.booking_status;
+        if (s in rsvpsByEvent[eid]) rsvpsByEvent[eid][s]++;
       });
-      console.log("[ADMIN] Booked by event_id:", bookedByEventId);
 
-      // Render booked count into each .facilitator-event row
-      slugPairs.forEach(({ cmsSlug, supabaseEvent, el }) => {
-        if (!supabaseEvent) { console.warn("[ADMIN] No Supabase match for CMS slug:", cmsSlug); return; }
-        const bookedEl = el.querySelector('[data-field="booked"]');
-        console.log("[ADMIN] bookedEl for", cmsSlug, "→", bookedEl);
-        if (bookedEl) bookedEl.textContent = bookedByEventId[supabaseEvent.id] || 0;
-      });
+      // Clone .event-template for each Supabase event
+      const template = document.querySelector(".event-template");
+      const container = template?.parentElement;
+      if (template && container) {
+        template.classList.add("hide");
+        events.forEach(ev => {
+          const clone = template.cloneNode(true);
+          clone.classList.remove("hide");
+          const counts = rsvpsByEvent[ev.id] || { booked: 0, checked: 0, canceled: 0, "no-show": 0 };
+          const set = (field, val) => {
+            const el = clone.querySelector(`[data-field="${field}"]`);
+            if (el) el.textContent = val ?? "--";
+          };
+          set("event_slug", ev.event_slug);
+          set("booked", counts.booked);
+          set("checked", counts.checked);
+          set("canceled", counts.canceled);
+          set("no-show", counts["no-show"]);
+          set("event_current_capacity", ev.event_capacity);
+          set("event_status", ev.event_status);
+          container.appendChild(clone);
+        });
+      } else {
+        console.warn("[ADMIN] .event-template not found");
+      }
 
       let activeCount = 0, facilitatorCount = 0, frozenCount = 0, pendingCount = 0, rejectedCount = 0, adminCount = 0;
 
