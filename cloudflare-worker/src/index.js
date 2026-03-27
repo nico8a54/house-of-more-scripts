@@ -818,7 +818,7 @@ async function handleMemberRsvpSupabase(payload, env) {
   );
   if (existingRes.ok) {
     const existing = await existingRes.json();
-    if (existing.length > 0) return { message: "You're already booked for this event.", success: false };
+    if (existing.length > 0) return { message: "You have booked this event already! Check My Events, and your Email inbox.", success: false, alreadyBooked: true };
   }
 
   // Determine booking status based on real capacity
@@ -846,7 +846,7 @@ async function handleMemberRsvpSupabase(payload, env) {
 
   return rsvpStatus === "waitlist"
     ? { message: "You've been added to the waiting list.", success: true }
-    : { message: "You're booked! See you there.", success: true };
+    : { message: "You're booked! See you there. Check your Inbox for the invitation link.", success: true };
 }
 
 // ─── Route map: path → Make webhook URL ──────────────────────────────────────

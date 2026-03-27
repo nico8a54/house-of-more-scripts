@@ -228,9 +228,12 @@
 
     let answerShouldGoBack = false;
 
-    function showAnswerModal(message, goBack = false) {
+    function showAnswerModal(message, goBack = false, alertClass = null) {
       if (!answerModal || !messageRespond) return;
       messageRespond.textContent = message;
+      // Reset alerts
+      answerModal.querySelectorAll(".alert1, .alert2, .alert3").forEach(el => el.classList.add("hide"));
+      if (alertClass) answerModal.querySelector(`.${alertClass}`)?.classList.remove("hide");
       answerModal.classList.remove("hide");
       answerShouldGoBack = goBack;
     }
@@ -387,13 +390,14 @@
           rsvpAlertModal?.classList.add("hide");
 
           if (result.message) {
-            showAnswerModal(result.message, result.success === true);
+            const alertClass = result.success === true ? "alert3" : result.alreadyBooked ? "alert1" : "alert2";
+            showAnswerModal(result.message, result.success === true, alertClass);
           } else {
-            showAnswerModal("Something went wrong. Please try again.");
+            showAnswerModal("Something went wrong. Please try again.", false, "alert2");
           }
         } catch (err) {
           console.error("[RSVP] error:", err);
-          showAnswerModal("Something went wrong. Please try again.");
+          showAnswerModal("Something went wrong. Please try again.", false, "alert2");
         } finally {
           isSubmittingRsvp = false;
           rsvpConfirmBtn.disabled = false;
