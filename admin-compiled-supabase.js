@@ -581,6 +581,12 @@
       const formatUSD = n => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 
       const setCounter = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+      const setLastRowRadius = (parent) => {
+        if (!parent) return;
+        const rows = parent.querySelectorAll("[data-clone='true']");
+        rows.forEach(r => r.style.borderRadius = "");
+        if (rows.length) rows[rows.length - 1].style.borderRadius = "0 0 16px 16px";
+      };
       setCounter("active-members",       activeCount);
       setCounter("facilitators",         facilitatorCount);
       setCounter("frozen-members",       frozenCount);
@@ -675,6 +681,7 @@
         attachOpenModal(clone, member);
         applicantParent.appendChild(clone);
       });
+      setLastRowRadius(applicantParent);
 
       // --- RENDER MEMBERS (approved, rejected, frozen) ---
       if (memberTemplate) memberTemplate.style.display = "none";
@@ -703,6 +710,7 @@
         attachOpenModal(clone, member);
         memberParent.appendChild(clone);
       });
+      setLastRowRadius(memberParent);
 
       // --- RENDER FACILITATORS ---
       members.forEach(member => {
