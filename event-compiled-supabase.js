@@ -231,9 +231,13 @@
     function showAnswerModal(message, goBack = false, alertClass = null) {
       if (!answerModal || !messageRespond) return;
       messageRespond.textContent = message;
-      // Reset alerts
+      // Reset alerts and modal-content state
       answerModal.querySelectorAll(".alert1, .alert2, .alert3").forEach(el => el.classList.add("hide"));
-      if (alertClass) answerModal.querySelectorAll(`.${alertClass}`).forEach(el => el.classList.remove("hide"));
+      answerModal.querySelectorAll(".modal-content").forEach(el => el.classList.remove("alert1", "alert2", "alert3"));
+      if (alertClass) {
+        answerModal.querySelectorAll(`.${alertClass}`).forEach(el => el.classList.remove("hide"));
+        answerModal.querySelectorAll(".modal-content").forEach(el => el.classList.add(alertClass));
+      }
       answerModal.classList.remove("hide");
       answerShouldGoBack = goBack;
     }
