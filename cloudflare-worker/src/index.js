@@ -30,6 +30,30 @@ const PAID_PLAN_NAMES = new Set([
   "sustainer", "patron", "partner", "champion", "visionary",
 ]);
 
+// Maps application_status → Memberstack plan ID (free plans only)
+// Paid plan changes flow through Stripe checkout → Memberstack → webhook → Supabase
+const STATUS_TO_PLAN_ID = {
+  "pending":     "pln_members-5kbh0gjx",
+  "approved":    "pln_approved-member-bd2jv0hp1",
+  "rejected":    "pln_rejected-fo1l60nm3",
+  "frozen":      "pln_freeze-yy2kn0ejb",
+  "admin":       "pln_admin-1823l09h8",
+  "facilitator": "pln_facilitator-9o1kw0j5o",
+};
+
+// Price IDs for paid plans (prc_xxx) — used for manual paid plan grants
+const PAID_PLAN_PRICE_IDS = {
+  "neighbor":  "prc_neighbor-9d2107s4",
+  "supporter": "prc_supporter-l2200758",
+  "advocate":  "prc_advocate-cs1r05km",
+  "builder":   "", // TODO: add price ID
+  "sustainer": "prc_sustainer-7o1t05pv",
+  "patron":    "prc_patron-qo24071q",
+  "partner":   "prc_partner-1n1x05r5",
+  "champion":  "prc_champion-fy28079v",
+  "visionary": "prc_visionary-iw2005dl",
+};
+
 function parsePlanConnections(connections) {
   return connections.map(c => ({
     planId:   c.planId || "",
@@ -1013,7 +1037,56 @@ async function handleMemberstackPlanSync(request, env) {
   });
 }
 
-// ─── Admin approve/reject/freeze/unfreeze (Memberstack + Supabase direct) ────
+// ─── Supabase → Memberstack sync (DB webhook on member_profiles UPDATE) ──────
+async function handleSupabaseMemberSync(request, env) {
+  const signature = request.headers.get("x-supabase-signature");
+  if (!signature) return new Response("Unauthorized", { status: 401 });
+
+  const rawBody = await request.text();
+  if (!(await verifyWebflowSignature(rawBody, signature, env.SUPABASE_WEBHOOK_SECRET))) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  let body;
+  try { body = JSON.parse(rawBody); } catch { return new Response("Bad request", { status: 400 }); }
+
+  const record    = body.record     || {};
+  const oldRecord = body.old_record || {};
+  const { member_id, application_status } = record;
+
+  if (!member_id) {
+    return new Response(JSON.stringify({ ok: true, skipped: "no member_id" }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
+
+  // No actual status change — skip to prevent loops
+  if (application_status === oldRecord.application_status) {
+    return new Response(JSON.stringify({ ok: true, skipped: "no change" }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
+
+  if (!application_status) {
+    return new Response(JSON.stringify({ ok: true, skipped: "no status" }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
+
+  const planId = STATUS_TO_PLAN_ID[application_status.toLowerCase()];
+  if (!planId) {
+    console.log(`[SUPABASE SYNC] No plan mapping for "${application_status}" — skipping`);
+    return new Response(JSON.stringify({ ok: true, skipped: `no plan for ${application_status}` }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
+
+  const msRes = await fetch(
+    `https://admin.memberstack.com/members/${encodeURIComponent(member_id)}/add-plan`,
+    { method: "POST", headers: { "x-api-key": env.MEMBERSTACK_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ planId }) }
+  );
+  if (!msRes.ok) {
+    const err = await msRes.text();
+    if (!err.includes("already-have-plan")) throw new Error(`Memberstack add-plan error (${msRes.status}): ${err}`);
+  }
+
+  console.log(`[SUPABASE SYNC] ${member_id} → ${application_status} (plan: ${planId})`);
+  return new Response(JSON.stringify({ ok: true, member_id, application_status, planId }), { status: 200, headers: { "Content-Type": "application/json" } });
+}
+
+// ─── Admin approve/reject/freeze/unfreeze — writes Supabase, DB webhook syncs Memberstack ───
 const ACTION_STATUS_MAP = {
   approve:  { application_status: "approved",    subscription_plan: null },
   reject:   { application_status: "rejected",    subscription_plan: null },
@@ -1025,32 +1098,13 @@ async function handleAdminApproveMember(request, env) {
   let payload;
   try { payload = await request.json(); } catch { return new Response("Bad request", { status: 400 }); }
 
-  const { member_id, plan_id, action } = payload;
-  if (!member_id || !plan_id || !action) {
-    return new Response("member_id, plan_id and action required", { status: 400 });
-  }
+  const { member_id, action } = payload;
+  if (!member_id || !action) return new Response("member_id and action required", { status: 400 });
 
   const statusUpdate = ACTION_STATUS_MAP[action];
   if (!statusUpdate) return new Response(`Unknown action: ${action}`, { status: 400 });
 
-  // Update plan in Memberstack
-  const msRes = await fetch(
-    `https://admin.memberstack.com/members/${encodeURIComponent(member_id)}/add-plan`,
-    {
-      method:  "POST",
-      headers: { "x-api-key": env.MEMBERSTACK_KEY, "Content-Type": "application/json" },
-      body:    JSON.stringify({ planId: plan_id }),
-    }
-  );
-  if (!msRes.ok) {
-    const err = await msRes.text();
-    // Ignore "already-have-plan" — treat as success
-    if (!err.includes("already-have-plan")) {
-      throw new Error(`Memberstack add-plan error (${msRes.status}): ${err}`);
-    }
-  }
-
-  // Mirror status to Supabase
+  // Write to Supabase — DB webhook cascades to Memberstack automatically
   const sbRes = await fetch(
     `${SUPABASE_URL}/rest/v1/member_profiles?member_id=eq.${encodeURIComponent(member_id)}`,
     {
@@ -1416,6 +1470,21 @@ export default {
         return new Response(JSON.stringify({ error: err.message }), {
           status: 500,
           headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      }
+    }
+
+    // Supabase → Memberstack sync (DB webhook on member_profiles UPDATE)
+    if (path === "/supabase-member-sync") {
+      if (!env.MEMBERSTACK_KEY || !env.SUPABASE_WEBHOOK_SECRET) {
+        return new Response("Server misconfiguration", { status: 500 });
+      }
+      try {
+        return await handleSupabaseMemberSync(request, env);
+      } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500, headers: { "Content-Type": "application/json" },
         });
       }
     }
