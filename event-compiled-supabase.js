@@ -233,7 +233,7 @@
       messageRespond.textContent = message;
       // Reset alerts
       answerModal.querySelectorAll(".alert1, .alert2, .alert3").forEach(el => el.classList.add("hide"));
-      if (alertClass) answerModal.querySelector(`.${alertClass}`)?.classList.remove("hide");
+      if (alertClass) answerModal.querySelectorAll(`.${alertClass}`).forEach(el => el.classList.remove("hide"));
       answerModal.classList.remove("hide");
       answerShouldGoBack = goBack;
     }
