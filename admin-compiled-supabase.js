@@ -597,6 +597,10 @@
       setCounter("admin-members",        adminCount);
       setCounter("total-donations",      formatUSD(grandTotalCents / 100));
 
+      if (pendingCount > 0) {
+        document.querySelector(".app-button.applications .alert")?.classList.remove("hide");
+      }
+
       console.log("[ADMIN] Counters:", { activeCount, facilitatorCount, frozenCount, pendingCount, rejectedCount, adminCount, grandTotal: formatUSD(grandTotalCents / 100) });
 
       const alertEl = document.getElementById("alert");
