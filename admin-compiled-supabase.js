@@ -713,31 +713,29 @@
       setLastRowRadius(memberParent);
 
       // --- RENDER FACILITATORS ---
+      if (facilitatorTemplate) facilitatorTemplate.style.display = "none";
+      const facilitatorParent = facilitatorTemplate?.parentElement;
+
       members.forEach(member => {
-        const facilitatorPlan = (member.planConnections || []).find(p =>
-          String(p.planName).trim().toLowerCase() === "facilitator"
-        );
-        if (!facilitatorPlan) return;
-        facilitatorCount++;
-        const parent = facilitatorTemplate?.parentElement;
-        if (!facilitatorTemplate || !parent) return;
+        const status = (member.application_status || "").toLowerCase();
+        if (status !== "facilitator") return;
+        if (!facilitatorTemplate || !facilitatorParent) return;
+
         const clone = facilitatorTemplate.cloneNode(true);
         clone.setAttribute("data-clone", "true");
-        setField(clone, "first-name", member.customFields?.["first-name"]);
-        setField(clone, "last-name", member.customFields?.["last-name"]);
-        setField(clone, "email", member.auth?.email);
-        setField(clone, "phone", member.customFields?.phone);
-        setField(clone, "createdAt", new Date(member.createdAt).toLocaleDateString());
-        setField(clone, "member-id", member.id);
-        setField(clone, "application_status", facilitatorPlan.planName);
-        setInitials(clone, member.customFields?.["first-name"], member.customFields?.["last-name"]);
-        applyStatusClass(clone.querySelector(".status-tag"), facilitatorPlan.planName);
-        attachOpenModal(clone, member.id);
         clone.style.display = "grid";
-        parent.appendChild(clone);
+        setField(clone, "first_name",         member.first_name);
+        setField(clone, "last_name",          member.last_name);
+        setField(clone, "email",              member.email);
+        setField(clone, "phone",              member.phone);
+        setField(clone, "createdAt",          member.date_of_request ? new Date(member.date_of_request).toLocaleDateString() : "");
+        setField(clone, "member-id",          member.member_id);
+        setField(clone, "application_status", "facilitator");
+        applyStatusClass(clone.querySelector(".status-tag"), "facilitator");
+        attachOpenModal(clone, member);
+        facilitatorParent.appendChild(clone);
       });
-
-      if (facilitatorTemplate) facilitatorTemplate.style.display = "none";
+      setLastRowRadius(facilitatorParent);
 
 
     } catch (error) {
