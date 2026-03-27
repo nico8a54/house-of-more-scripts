@@ -1039,16 +1039,13 @@ async function handleMemberstackPlanSync(request, env) {
 
 // ─── Supabase → Memberstack sync (DB webhook on member_profiles UPDATE) ──────
 async function handleSupabaseMemberSync(request, env) {
-  const signature = request.headers.get("x-supabase-signature");
-  if (!signature) return new Response("Unauthorized", { status: 401 });
-
-  const rawBody = await request.text();
-  if (!(await verifyWebflowSignature(rawBody, signature, env.SUPABASE_WEBHOOK_SECRET))) {
+  const secret = request.headers.get("x-webhook-secret");
+  if (!secret || secret !== env.SUPABASE_WEBHOOK_SECRET) {
     return new Response("Unauthorized", { status: 401 });
   }
 
   let body;
-  try { body = JSON.parse(rawBody); } catch { return new Response("Bad request", { status: 400 }); }
+  try { body = await request.json(); } catch { return new Response("Bad request", { status: 400 }); }
 
   const record    = body.record     || {};
   const oldRecord = body.old_record || {};
