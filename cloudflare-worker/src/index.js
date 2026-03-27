@@ -993,7 +993,7 @@ async function handleMemberstackPlanSync(request, env) {
   try { body = JSON.parse(rawBody); } catch { return new Response("Bad request", { status: 400 }); }
 
   const event = body.event || "";
-  if (!["memberstack.member.plan.added", "memberstack.member.plan.removed"].includes(event)) {
+  if (!["memberstack.member.plan.added", "memberstack.member.plan.removed", "memberstack.member.plan.updated", "memberstack.member.plan.canceled"].includes(event)) {
     return new Response(JSON.stringify({ ok: true, skipped: event }), {
       status: 200, headers: { "Content-Type": "application/json" },
     });
