@@ -1,6 +1,9 @@
 (function () {
   "use strict";
 
+  // Shared state: populated by Section 6 load handler, consumed by Section 8 button
+  const facilitatorData = { rsvps: [], events: [] };
+
   /*=========================================================
     SECTION 1 — TAB NAVIGATION
     src: navigate-tabs.js
@@ -450,16 +453,8 @@
       if (hasFacilitator) show(ui.facilitatorMenu);
     }
 
-    function filterFacilitatorEvents(data) {
-      const isFacilitator = Array.isArray(data?.plan_name) &&
-        data.plan_name.some(p => p?.planId === "pln_facilitator-9o1kw0j5o");
-      const memberEmail = (data?.email || "").trim().toLowerCase();
-      document.querySelectorAll(".facilitator-event").forEach(card => {
-        if (!isFacilitator) { card.classList.add("hide"); return; }
-        const emailEl = card.querySelector(".facilitator-email");
-        const facilitatorEmail = (emailEl?.textContent || "").trim().toLowerCase();
-        card.classList.toggle("hide", facilitatorEmail !== memberEmail);
-      });
+    function filterFacilitatorEvents() {
+      // No client-side filtering — all facilitator-event cards are shown
     }
 
     function updateCancelPlan(data) {
@@ -574,56 +569,9 @@ function renderFields(data) {
 
     console.log("[MEMBER] Full profile response:", data);
 
-    const isFacilitator = Array.isArray(data?.plan_name) &&
-      data.plan_name.some(p => p?.planId === "pln_facilitator-9o1kw0j5o");
-    if (!isFacilitator) {
-      console.log("[FACILITATOR] Not a facilitator — skipping facilitator RSVPs.");
-    } else if (!data.facilitator_rsvps || data.facilitator_rsvps.length === 0) {
-      console.log("[FACILITATOR] Facilitator has no RSVPs yet.");
-    } else {
-      console.log("[FACILITATOR] RSVPs for facilitator's events:", data.facilitator_rsvps);
-
-      console.log("[FACILITATOR] facilitator_events:", data.facilitator_events);
-
-      // Build slug → event map
-      const slugToEvent = {};
-      (data.facilitator_events || []).forEach(e => {
-        if (e.event_slug) slugToEvent[e.event_slug] = e;
-      });
-
-      // Group RSVPs by event_id
-      const rsvpsByEvent = {};
-      for (const rsvp of data.facilitator_rsvps) {
-        if (!rsvpsByEvent[rsvp.event_id]) rsvpsByEvent[rsvp.event_id] = [];
-        rsvpsByEvent[rsvp.event_id].push(rsvp);
-      }
-
-      // Render counts per card
-      document.querySelectorAll(".facilitator-event").forEach(card => {
-        const link = card.querySelector("a[href]");
-        if (!link?.href) return;
-        const slug = link.href.split("/").filter(Boolean).pop();
-        const event = slugToEvent[slug];
-        if (!event) return;
-
-        const counts = { booked: 0, canceled: 0, checked: 0, "no-show": 0 };
-        (rsvpsByEvent[event.id] || []).forEach(r => {
-          if (r.booking_status in counts) counts[r.booking_status]++;
-        });
-        console.log(`[FACILITATOR] ${slug} counts:`, counts);
-
-        for (const [status, count] of Object.entries(counts)) {
-          const el = card.querySelector(`[data-field="${status}"]`);
-          if (el) el.textContent = count;
-        }
-
-        const capacityEl = card.querySelector('[data-field="event_current_capacity"]');
-        console.log(`[FACILITATOR] ${slug} capacity el:`, capacityEl, "value:", event.event_current_capacity);
-        if (capacityEl) capacityEl.textContent = event.event_current_capacity;
-      });
-    }
-
     state.data = data;
+    facilitatorData.rsvps  = data.facilitator_rsvps  || [];
+    facilitatorData.events = data.facilitator_events || [];
 
     updateFacilitatorMenu(data);
     updateCancelPlan(data);
@@ -690,6 +638,55 @@ function renderFields(data) {
         console.error("[MEMBER] Profile update error:", err);
       }
     });
+  });
+
+  /*=========================================================
+    SECTION 8 — FACILITATOR EVENT MANAGER BUTTON
+    MIGRATED: uses Supabase facilitator_rsvps pre-fetched in /member-data
+    No client-side filtering — all events are shown
+  =========================================================*/
+  document.addEventListener("click", (e) => {
+    const button = e.target.closest(".app-button.facilitator-events");
+    if (!button) return;
+    if (button.dataset.loading === "true") return;
+    button.dataset.loading = "true";
+
+    try {
+      // Build capacity map: event_id → event_current_capacity
+      const eventCapacity = {};
+      facilitatorData.events.forEach(ev => {
+        if (ev.id) eventCapacity[ev.id] = ev.event_current_capacity ?? 0;
+      });
+
+      // Group RSVPs by event_id
+      const rsvpsByEvent = {};
+      facilitatorData.rsvps.forEach(rsvp => {
+        const eid = rsvp.event_id;
+        if (!eid) return;
+        if (!rsvpsByEvent[eid]) rsvpsByEvent[eid] = { booked: 0, canceled: 0, checked: 0, "no-show": 0 };
+        const s = rsvp.booking_status;
+        if (s in rsvpsByEvent[eid]) rsvpsByEvent[eid][s]++;
+      });
+
+      // Populate each event card using .event-record-id for matching
+      document.querySelectorAll(".facilitator-event").forEach(card => {
+        const eventId = card.querySelector(".event-record-id")?.textContent?.trim();
+        if (!eventId) return;
+        const counts = rsvpsByEvent[eventId] || { booked: 0, canceled: 0, checked: 0, "no-show": 0 };
+        for (const [status, count] of Object.entries(counts)) {
+          const el = card.querySelector(`[data-field="${status}"]`);
+          if (el) el.textContent = count;
+        }
+        const capacityEl = card.querySelector('[data-field="event_current_capacity"]');
+        if (capacityEl) capacityEl.textContent = eventCapacity[eventId] ?? "";
+      });
+
+      console.log("[FACILITATOR] Event manager rendered from Supabase data", rsvpsByEvent);
+    } catch (err) {
+      console.error("[FACILITATOR] Event manager error:", err);
+    } finally {
+      button.dataset.loading = "false";
+    }
   });
 
 })();
