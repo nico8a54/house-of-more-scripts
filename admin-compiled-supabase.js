@@ -542,12 +542,14 @@
       // Pair Supabase events with CMS .facilitator-event elements by slug
       const eventsBySlug = {};
       events.forEach(ev => { if (ev.event_slug) eventsBySlug[ev.event_slug] = ev; });
+      console.log("[ADMIN] Supabase slugs:", Object.keys(eventsBySlug));
 
       const slugPairs = [];
       document.querySelectorAll(".facilitator-event").forEach(item => {
         const cmsSlug = item.getAttribute('data-field')?.trim();
         slugPairs.push({ cmsSlug, supabaseEvent: eventsBySlug[cmsSlug] || null, el: item });
       });
+      console.log("[ADMIN] CMS slugs:", slugPairs.map(p => p.cmsSlug));
       console.log("[ADMIN] Slug pairs (CMS ↔ Supabase):", slugPairs);
 
       // Count booked RSVPs per event_id
@@ -557,11 +559,13 @@
           bookedByEventId[rsvp.event_id] = (bookedByEventId[rsvp.event_id] || 0) + 1;
         }
       });
+      console.log("[ADMIN] Booked by event_id:", bookedByEventId);
 
       // Render booked count into each .facilitator-event row
-      slugPairs.forEach(({ supabaseEvent, el }) => {
-        if (!supabaseEvent || !el) return;
+      slugPairs.forEach(({ cmsSlug, supabaseEvent, el }) => {
+        if (!supabaseEvent) { console.warn("[ADMIN] No Supabase match for CMS slug:", cmsSlug); return; }
         const bookedEl = el.querySelector('[data-field="booked"]');
+        console.log("[ADMIN] bookedEl for", cmsSlug, "→", bookedEl);
         if (bookedEl) bookedEl.textContent = bookedByEventId[supabaseEvent.id] || 0;
       });
 
