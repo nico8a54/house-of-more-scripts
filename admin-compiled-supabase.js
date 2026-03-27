@@ -391,16 +391,33 @@
         }
       });
 
-      // Build event lookup for capacity + status
-      const eventsById = {};
-      adminEvents.forEach(ev => { if (ev.id) eventsById[ev.id] = ev; });
+      // Build event lookup by slug
+      const eventsBySlug = {};
+      adminEvents.forEach(ev => { if (ev.event_slug) eventsBySlug[ev.event_slug] = ev; });
 
-      // Populate facilitator event cards
+      // Build rsvp lookup by slug (via event slug from adminEvents)
+      const rsvpsBySlug = {};
+      adminEvents.forEach(ev => {
+        if (!ev.event_slug) return;
+        rsvpsBySlug[ev.event_slug] = rsvpsByEvent[ev.id] || { booked: 0, canceled: 0, checked: 0, "no-show": 0 };
+      });
+
+      // Diagnostic: log what DOM has vs what Supabase has
+      const domSlugs = [];
       document.querySelectorAll(".facilitator-event").forEach(item => {
-        const eventId = item.querySelector(".event-record-id")?.textContent?.trim();
-        if (!eventId) return;
-        const counts = rsvpsByEvent[eventId] || { booked: 0, canceled: 0, checked: 0, "no-show": 0 };
-        const ev = eventsById[eventId] || {};
+        const slug = item.querySelector('[data-field="event_slug"]')?.textContent?.trim();
+        domSlugs.push(slug || "(missing)");
+      });
+      console.log("[ADMIN] Facilitator events — DOM slugs:", domSlugs);
+      console.log("[ADMIN] Supabase events by slug:", Object.keys(eventsBySlug));
+      console.log("[ADMIN] RSVPs by slug:", rsvpsBySlug);
+
+      // Populate facilitator event cards using slug
+      document.querySelectorAll(".facilitator-event").forEach(item => {
+        const slug = item.querySelector('[data-field="event_slug"]')?.textContent?.trim();
+        if (!slug) return;
+        const counts = rsvpsBySlug[slug] || { booked: 0, canceled: 0, checked: 0, "no-show": 0 };
+        const ev = eventsBySlug[slug] || {};
         ["booked", "canceled", "checked", "no-show"].forEach(status => {
           const el = item.querySelector(`[data-field="${status}"]`);
           if (el) el.textContent = counts[status] ?? 0;
@@ -409,9 +426,11 @@
         if (capacityEl) capacityEl.textContent = ev.event_capacity ?? "";
         const statusEl = item.querySelector('[data-field="event_status"]');
         if (statusEl) statusEl.textContent = ev.event_status ?? "";
+        const spotsEl = item.querySelector('[data-field="spots_available"]');
+        if (spotsEl) spotsEl.textContent = ev.event_capacity != null ? Math.max(0, ev.event_capacity - counts.booked) : "";
       });
 
-      console.log("[ADMIN] Event manager rendered from Supabase data", rsvpsByEvent);
+      console.log("[ADMIN] Event manager rendered from Supabase data", rsvpsBySlug);
     } catch (error) {
       console.error("[ADMIN] Event manager error:", error);
     } finally {
