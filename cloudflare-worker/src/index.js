@@ -25,6 +25,11 @@ const PLAN_IDS = {
   rejected:    "pln_rejected-fo1l60nm3",
 };
 
+const PAID_PLAN_NAMES = new Set([
+  "neighbor", "supporter", "advocate", "builder",
+  "sustainer", "patron", "partner", "champion", "visionary",
+]);
+
 function parsePlanConnections(connections) {
   return connections.map(c => ({
     planId:   c.planId || "",
@@ -32,6 +37,32 @@ function parsePlanConnections(connections) {
     status:   (c.payment?.status || c.status || "").toLowerCase(),
     type:     (c.type || "").toLowerCase(),
   }));
+}
+
+// Derives application_status + subscription_plan from a member's full planConnections.
+// Priority: frozen → admin → paid tier → approved (active) → facilitator-only → rejected → pending
+function resolveStatusFromConnections(connections) {
+  const hasFrozen      = connections.some(c => c.planId === PLAN_IDS.frozen);
+  const hasAdmin       = connections.some(c => c.planId === PLAN_IDS.admin);
+  const hasFacilitator = connections.some(c => c.planId === PLAN_IDS.facilitator);
+  const hasActive      = connections.some(c => c.planId === PLAN_IDS.active);
+  const hasRejected    = connections.some(c => c.planId === PLAN_IDS.rejected);
+  const hasPending     = connections.some(c => c.planId === PLAN_IDS.pending);
+  const paidPlan       = connections.find(c =>
+    c.type === "paid" || PAID_PLAN_NAMES.has((c.planName || "").toLowerCase())
+  );
+
+  if (hasFrozen)      return { application_status: "frozen",                    subscription_plan: null };
+  if (hasAdmin)       return { application_status: "admin",                     subscription_plan: null };
+  if (paidPlan) {
+    const name = (paidPlan.planName || "").toLowerCase();
+    return           { application_status: name,                                subscription_plan: name };
+  }
+  if (hasActive)      return { application_status: "approved",                  subscription_plan: null };
+  if (hasFacilitator) return { application_status: "facilitator",               subscription_plan: null };
+  if (hasRejected)    return { application_status: "rejected",                  subscription_plan: null };
+  if (hasPending)     return { application_status: "pending",                   subscription_plan: null };
+  return                     { application_status: null,                        subscription_plan: null };
 }
 
 const QUESTIONNAIRE_FIELDS = [
@@ -770,7 +801,7 @@ async function handleEventData(payload, env) {
 }
 
 async function handleMemberRsvpSupabase(payload, env) {
-  const { event_slug, member_id, member_email, name, status, member = true } = payload;
+  const { event_slug, member_id, status, member = true } = payload;
   if (!event_slug || !member_id) throw new Error("event_slug and member_id are required");
 
   const sbHeaders = {
@@ -923,6 +954,182 @@ async function handleFacilitatorCheckin(payload, env) {
   };
 }
 
+// ─── Memberstack plan sync (webhook from Memberstack on plan add/remove) ─────
+async function handleMemberstackPlanSync(request, env) {
+  // Verify signature — Memberstack signs with HMAC-SHA256 of raw body
+  const signature = request.headers.get("x-memberstack-signature");
+  if (!signature) return new Response("Unauthorized", { status: 401 });
+
+  const rawBody = await request.text();
+  if (!(await verifyWebflowSignature(rawBody, signature, env.MEMBERSTACK_WEBHOOK_SECRET))) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  let body;
+  try { body = JSON.parse(rawBody); } catch { return new Response("Bad request", { status: 400 }); }
+
+  const event = body.event || "";
+  if (!["memberstack.member.plan.added", "memberstack.member.plan.removed"].includes(event)) {
+    return new Response(JSON.stringify({ ok: true, skipped: event }), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const member     = body.data || {};
+  const memberId   = member.id;
+  if (!memberId) return new Response("member id missing", { status: 400 });
+
+  const connections = parsePlanConnections(member.planConnections || []);
+  const { application_status, subscription_plan } = resolveStatusFromConnections(connections);
+
+  if (!application_status) {
+    console.log(`[PLAN SYNC] No resolvable status for ${memberId} — skipping`);
+    return new Response(JSON.stringify({ ok: true, skipped: "no status" }), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const sbRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/member_profiles?member_id=eq.${encodeURIComponent(memberId)}`,
+    {
+      method:  "PATCH",
+      headers: {
+        "apikey":        env.SUPABASE_KEY,
+        "Authorization": `Bearer ${env.SUPABASE_KEY}`,
+        "Content-Type":  "application/json",
+        "Prefer":        "return=minimal",
+      },
+      body: JSON.stringify({ application_status, subscription_plan }),
+    }
+  );
+  if (!sbRes.ok) {
+    const err = await sbRes.text();
+    throw new Error(`Supabase PATCH error (${sbRes.status}): ${err}`);
+  }
+
+  console.log(`[PLAN SYNC] ${memberId} → ${application_status} / ${subscription_plan ?? "null"}`);
+  return new Response(JSON.stringify({ ok: true, application_status, subscription_plan }), {
+    status: 200, headers: { "Content-Type": "application/json" },
+  });
+}
+
+// ─── Admin approve/reject/freeze/unfreeze (Memberstack + Supabase direct) ────
+const ACTION_STATUS_MAP = {
+  approve:  { application_status: "approved",    subscription_plan: null },
+  reject:   { application_status: "rejected",    subscription_plan: null },
+  freeze:   { application_status: "frozen",      subscription_plan: null },
+  unfreeze: { application_status: "approved",    subscription_plan: null },
+};
+
+async function handleAdminApproveMember(request, env) {
+  let payload;
+  try { payload = await request.json(); } catch { return new Response("Bad request", { status: 400 }); }
+
+  const { member_id, plan_id, action } = payload;
+  if (!member_id || !plan_id || !action) {
+    return new Response("member_id, plan_id and action required", { status: 400 });
+  }
+
+  const statusUpdate = ACTION_STATUS_MAP[action];
+  if (!statusUpdate) return new Response(`Unknown action: ${action}`, { status: 400 });
+
+  // Update plan in Memberstack
+  const msRes = await fetch(
+    `https://admin.memberstack.com/members/${encodeURIComponent(member_id)}/add-plan`,
+    {
+      method:  "POST",
+      headers: { "x-api-key": env.MEMBERSTACK_KEY, "Content-Type": "application/json" },
+      body:    JSON.stringify({ planId: plan_id }),
+    }
+  );
+  if (!msRes.ok) {
+    const err = await msRes.text();
+    // Ignore "already-have-plan" — treat as success
+    if (!err.includes("already-have-plan")) {
+      throw new Error(`Memberstack add-plan error (${msRes.status}): ${err}`);
+    }
+  }
+
+  // Mirror status to Supabase
+  const sbRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/member_profiles?member_id=eq.${encodeURIComponent(member_id)}`,
+    {
+      method:  "PATCH",
+      headers: {
+        "apikey":        env.SUPABASE_KEY,
+        "Authorization": `Bearer ${env.SUPABASE_KEY}`,
+        "Content-Type":  "application/json",
+        "Prefer":        "return=minimal",
+      },
+      body: JSON.stringify(statusUpdate),
+    }
+  );
+  if (!sbRes.ok) {
+    const err = await sbRes.text();
+    throw new Error(`Supabase PATCH error (${sbRes.status}): ${err}`);
+  }
+
+  console.log(`[ADMIN ACTION] ${action} → ${member_id} → ${statusUpdate.application_status}`);
+  return { ok: true, ...statusUpdate };
+}
+
+// ─── Admin data (verify admin, fetch all members + donations) ────────────────
+async function handleAdminData(request, env) {
+  let payload;
+  try { payload = await request.json(); } catch { return new Response("Bad request", { status: 400 }); }
+
+  const { member_id } = payload;
+  if (!member_id) return new Response("member_id required", { status: 400 });
+
+  // Verify caller has admin plan
+  const msVerifyRes = await fetch(
+    `https://admin.memberstack.com/members/${encodeURIComponent(member_id)}`,
+    { headers: { "x-api-key": env.MEMBERSTACK_KEY } }
+  );
+  if (!msVerifyRes.ok) return new Response("Member not found", { status: 404 });
+  const msVerifyJson = await msVerifyRes.json();
+  const callerConnections = parsePlanConnections(msVerifyJson.data?.planConnections || []);
+  if (!callerConnections.some(c => c.planId === PLAN_IDS.admin)) {
+    return new Response("Forbidden", { status: 403 });
+  }
+
+  // Start donations fetch in parallel with member pagination
+  const donationsPromise = fetch(
+    `${SUPABASE_URL}/rest/v1/donations?select=*&order=created_at.desc`,
+    { headers: { "apikey": env.SUPABASE_KEY, "Authorization": `Bearer ${env.SUPABASE_KEY}` } }
+  );
+
+  // Paginate all Memberstack members
+  const allMembers = [];
+  let after = null;
+  let hasNextPage = true;
+  while (hasNextPage) {
+    const qs = new URLSearchParams({ limit: "100" });
+    if (after) qs.set("after", after);
+    const res = await fetch(`https://admin.memberstack.com/members?${qs}`, {
+      headers: { "x-api-key": env.MEMBERSTACK_KEY },
+    });
+    if (!res.ok) throw new Error(`Memberstack list members error (${res.status})`);
+    const json = await res.json();
+    const page = Array.isArray(json.data) ? json.data : [];
+    allMembers.push(...page);
+    hasNextPage = json.hasNextPage ?? false;
+    after = json.lastCursor ?? null;
+    if (!hasNextPage || !after) break;
+  }
+
+  // Await donations
+  const donationsRes = await donationsPromise;
+  if (!donationsRes.ok) throw new Error(`Supabase donations error (${donationsRes.status})`);
+  const donations = await donationsRes.json();
+
+  console.log(`[ADMIN DATA] ${allMembers.length} members, ${donations.length} donations`);
+  return new Response(JSON.stringify({ members: allMembers, donations }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 // ─── Route map: path → Make webhook URL ──────────────────────────────────────
 const ROUTES = {
   // Member
@@ -938,7 +1145,7 @@ const ROUTES = {
   // Admin
   "/admin-list-members":      "https://hook.us2.make.com/bljtvfbfs1otu3mmxj3cn4042cmwrnux",
   "/admin-get-member":        "https://hook.us2.make.com/uaabv0g63cd26gcmrk8d2konymutrkc5",
-  "/admin-approve-member":    "https://hook.us2.make.com/u2lzpknloicl3wbo1ftkixyrg9t7msia",
+  // "/admin-approve-member" — migrated to Supabase direct (see handleAdminApproveMember)
   "/admin-list-rsvp":         "https://hook.us2.make.com/4ccux957qcdn2n1ocwsxw7uwca6558f9",
   "/admin-list-event":        "https://hook.us2.make.com/cflbrl1lyeynad737qt9574hc55botq2",
   "/admin-messages":          "https://hook.us2.make.com/6wea8zdfq4qprfrexknmyu8a5myiyh12",
@@ -1219,6 +1426,55 @@ export default {
         return new Response(JSON.stringify({ error: err.message }), {
           status: 500,
           headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      }
+    }
+
+    // Memberstack plan sync (webhook from Memberstack on plan add/remove)
+    if (path === "/memberstack-plan-sync") {
+      if (!env.SUPABASE_KEY || !env.MEMBERSTACK_WEBHOOK_SECRET) {
+        return new Response("Server misconfiguration", { status: 500 });
+      }
+      try {
+        return await handleMemberstackPlanSync(request, env);
+      } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500, headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // Admin data (all members + donations)
+    if (path === "/admin-data") {
+      if (!env.SUPABASE_KEY || !env.MEMBERSTACK_KEY) {
+        return new Response("Server misconfiguration", { status: 500 });
+      }
+      try {
+        return await handleAdminData(request, env);
+      } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      }
+    }
+
+    // Admin approve/reject/freeze/unfreeze (Supabase direct)
+    if (path === "/admin-approve-member") {
+      if (!env.SUPABASE_KEY || !env.MEMBERSTACK_KEY) {
+        return new Response("Server misconfiguration", { status: 500 });
+      }
+      try {
+        const data = await handleAdminApproveMember(request, env);
+        return new Response(JSON.stringify(data), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
         });
       }
     }

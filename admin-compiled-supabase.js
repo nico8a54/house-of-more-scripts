@@ -559,10 +559,16 @@
         }
       };
 
-      // --- FETCH ALL MEMBERS ---
-      const response = await fetch("https://houseofmore.nico-97c.workers.dev/admin-list-members");
-      const { data: members = [] } = await response.json();
-      console.log("[ADMIN] Members loaded:", members.length);
+      // --- FETCH ALL DATA (members + donations) ---
+      const memberId = document.querySelector('[data-ms-member="id"]')?.textContent?.trim();
+      const adminDataRes = await fetch("https://houseofmore.nico-97c.workers.dev/admin-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ member_id: memberId })
+      });
+      const adminData = await adminDataRes.json();
+      console.log("[ADMIN] admin-data response:", adminData);
+      return; // rendering disabled — console.log only for now
 
       const alertEl = document.getElementById("alert");
       const applicantModal = document.querySelector(".applicant-modal");
