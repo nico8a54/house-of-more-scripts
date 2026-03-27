@@ -390,6 +390,17 @@
         }
       });
 
+      // Populate facilitator event cards (same table structure, same matching key)
+      document.querySelectorAll(".facilitator-event").forEach(item => {
+        const eventId = item.querySelector(".event-record-id")?.textContent?.trim();
+        if (!eventId) return;
+        const counts = rsvpsByEvent[eventId] || { booked: 0, canceled: 0, attendees: [] };
+        const bookedEl = item.querySelector('[data-field="booked"]');
+        const canceledEl = item.querySelector('[data-field="canceled"]');
+        if (bookedEl) bookedEl.textContent = counts.booked;
+        if (canceledEl) canceledEl.textContent = counts.canceled;
+      });
+
       console.log("[ADMIN] Event manager rendered from Supabase data", rsvpsByEvent);
     } catch (error) {
       console.error("[ADMIN] Event manager error:", error);
