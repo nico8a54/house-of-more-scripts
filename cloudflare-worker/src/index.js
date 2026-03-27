@@ -861,8 +861,8 @@ async function handleMemberRsvpSupabase(payload, env) {
 
 // ─── Facilitator QR check-in (Supabase direct) ───────────────────────────────
 async function handleFacilitatorCheckin(payload, env) {
-  const { qr_text, event_id } = payload;
-  if (!qr_text || !event_id) throw new Error("qr_text and event_id are required");
+  const { qr_text } = payload;
+  if (!qr_text) throw new Error("qr_text is required");
 
   const SUPABASE_URL = env.SUPABASE_URL || "https://qgaqxftvuosgdoqvkxet.supabase.co";
   const sbHeaders = {
@@ -871,12 +871,11 @@ async function handleFacilitatorCheckin(payload, env) {
     "Content-Type":  "application/json",
   };
 
-  const eid  = encodeURIComponent(event_id);
   const rsvpId = encodeURIComponent(qr_text);
 
-  // 1. Look up the RSVP record by UUID + event_id
+  // 1. Look up the RSVP record by UUID
   const lookupRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/event_rsvps?id=eq.${rsvpId}&event_id=eq.${eid}&select=id,member_id,booking_status`,
+    `${SUPABASE_URL}/rest/v1/event_rsvps?id=eq.${rsvpId}&select=id,member_id,booking_status`,
     { headers: sbHeaders }
   );
   if (!lookupRes.ok) throw new Error(`Supabase lookup failed (${lookupRes.status})`);

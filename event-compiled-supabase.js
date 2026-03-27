@@ -495,11 +495,8 @@
 
   async function fireWebhook(qrText) {
     setStatus("Sending...");
-    const eventId = eventIdEl ? eventIdEl.textContent.trim() : null;
     const payload = {
       qr_text: qrText,
-      event_id: eventId,
-      scanned_at: new Date().toISOString(),
     };
     console.log("[CHECK-IN] Payload:", payload);
     const res = await fetch(WEBHOOK_URL, {
