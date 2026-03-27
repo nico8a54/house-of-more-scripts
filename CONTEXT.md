@@ -40,6 +40,7 @@ Secrets set in Worker:
 - `WEBFLOW_SECRET_PUBLISHED`
 - `WEBFLOW_SECRET_UNPUBLISHED`
 - `WEBFLOW_WEBHOOK_SECRET` (legacy — old single-secret approach, kept but unused)
+- `MEMBERSTACK_WEBHOOK_SECRET` — signs `/memberstack-plan-sync` webhook (HMAC-SHA256)
 
 CORS allowed origins: `https://www.thehouseofmore.com`, `https://thehouseofmore.com`, `http://localhost:5500`, `http://127.0.0.1:5500`
 
@@ -50,6 +51,8 @@ CORS allowed origins: `https://www.thehouseofmore.com`, `https://thehouseofmore.
 - `POST /memberstack-add-plan` — called by Supabase DB webhook on `member_profiles` INSERT → adds `pln_members-5kbh0gjx` to member in Memberstack
 - `POST /event-data` — fetches event from `events_with_capacity` view by `event_slug` + member plan info from Memberstack in parallel. RSVPs (with embedded `member_profiles`: first_name, last_name, email, member_id) only fetched and returned if member has admin or facilitator plan. Returns `{ event, rsvps, current_capacity, member }`.
 - `POST /member-rsvp-supabase` — handles RSVP booking, cancel, waiting-list for members. Writes `member` boolean to `event_rsvps`. Returns `{ message, success, alreadyBooked? }`. Guards: already booked (booked/waitlist) → `success: false, alreadyBooked: true`; prior cancellation → `success: false` (no re-booking allowed, must email info@thehouseofmore.com); event not found → `success: false`.
+- `POST /memberstack-plan-sync` — Memberstack webhook receiver (`member.plan.added` / `member.plan.removed`). Verifies `x-memberstack-signature` (HMAC-SHA256, secret: `MEMBERSTACK_WEBHOOK_SECRET`). Resolves `application_status` + `subscription_plan` from full `planConnections` using priority: frozen → admin → paid tier → approved → facilitator-only → rejected → pending. PATCHes `member_profiles`. Skips unknown events with 200.
+- `POST /admin-approve-member` — **Migrated from Make.com.** Receives `{ member_id, plan_id, action }`. Calls Memberstack `/add-plan`, then PATCHes `member_profiles.application_status` + `subscription_plan` in Supabase. Actions: `approve` → `approved`, `reject` → `rejected`, `freeze` → `frozen`, `unfreeze` → `approved`. Requires `MEMBERSTACK_KEY` + `SUPABASE_KEY`.
 - `POST /facilitator-checkin-supabase` — QR check-in for facilitators. Payload: `{ qr_text, event_slug }`. `qr_text` is the `event_rsvps.id` UUID encoded in the member's confirmation email QR. Looks up RSVP by UUID, validates `events.event_slug` matches payload (rejects cross-event QRs), guards already-checked and canceled states, patches `booking_status` → `"checked"`, fetches `member_profiles` for display name/email. Returns object `{ member_name, id, email, rsvp_record_id, booking_status: "checked" }` on success, or a plain string message on rejection.
 - `POST /send-rsvp-email` — called by Supabase DB webhook on `event_rsvps` INSERT (booking confirmation) and UPDATE (cancellation). Fetches event + member from Supabase, sends HTML email via Resend. Skips non-members and non-booking statuses. `booking_status` values: `"booked"` (confirmed), `"waitlist"`, `"canceled"` — worker writes these, NOT `"booking"`/`"waiting-list"` (those are frontend-only terms).
 - ~~`POST /webflow-event-sync`~~ — removed from Worker, replaced by Supabase Edge Function below
@@ -67,7 +70,7 @@ CORS allowed origins: `https://www.thehouseofmore.com`, `https://thehouseofmore.
 URL: `https://wioktwzioxzgmntgxsme.supabase.co`
 
 ### Tables & key columns
-- `member_profiles` — id (uuid), member_id, email, first_name, last_name, phone, birthday, gender, marital_status, application_status, date_of_request, approved_date, location, created_at, updated_at
+- `member_profiles` — id (uuid), member_id, email, first_name, last_name, phone, birthday, gender, marital_status, application_status, subscription_plan (text, nullable — paid plan name e.g. "sustainer"; null for free members), date_of_request, approved_date, location, created_at, updated_at
 - `member_questionnaire` — id, member_id, where_are_you_on_your_path, how_can_we_support_you, how_did_you_hear_about_the_house_of_more, have_you_been_with_the_house_of_more, how_many_events_have_you_attended_at_the_hom, how_many_events_per_month_can_you_participate, what_draws_you_to_the_house_of_more, community_and_contribution, is_there_anything_else, do_you_feel_aligned_with_the_house_of_more, i_commit_to_respecting_the_house_of_more (bool), skills_to_share
 - `event_rsvps` — id (uuid), member_id, event_id (text FK → events.id), booking_status, member (bool, default true — false for non-member bookings), rating, review, booked_at, cancel_at, created_at, updated_at
 - `donations` — id, member_id, email, amount (int, cents), type, status, receipt_url, transaction_id, recurrent_status
@@ -79,7 +82,9 @@ URL: `https://wioktwzioxzgmntgxsme.supabase.co`
 - `PROFILE_FIELDS` — first_name, last_name, phone, birthday, gender, marital_status, location
 - `QUESTIONNAIRE_FIELDS` — all 12 questionnaire columns including skills_to_share
 - `PLAN_IDS` — plan ID constants: active, admin, facilitator, frozen, pending, rejected (see below)
+- `PAID_PLAN_NAMES` — Set of paid plan names: neighbor, supporter, advocate, builder, sustainer, patron, partner, champion, visionary
 - `parsePlanConnections(connections)` — shared helper, returns `[{ planId, planName, status, type }]`
+- `resolveStatusFromConnections(connections)` — returns `{ application_status, subscription_plan }` using priority: frozen → admin → paid tier → approved → facilitator-only → rejected → pending. Used by `/memberstack-plan-sync` and `/admin-approve-member`.
 
 ### Edge Functions
 - `webflow-event-sync` — `https://wioktwzioxzgmntgxsme.supabase.co/functions/v1/webflow-event-sync`
@@ -282,6 +287,12 @@ Base copy of `admin-compiled.js` — migration in progress. Deploy URL pattern:
 **Admin Event Manager columns** — to match Facilitator Events view: Event Name, Date, Capacity, Checked, Booked, Canceled, No-show, Spots Available, Status, View
 
 **Actions (approve/reject/freeze/restore)** — stay as-is via existing `/admin-approve-member` Make.com route
+
+---
+
+## Frontend Notes
+
+- `data-lenis-prevent` — add this attribute to any scrollable container to allow native scrolling inside it when Lenis smooth scroll is active (e.g. modals, dropdowns, overflow lists)
 
 ---
 
