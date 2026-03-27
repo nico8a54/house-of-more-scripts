@@ -331,12 +331,15 @@
     }
   });
 
+  // Shared state: populated by load handler, consumed by event manager button
+  let adminRsvps = [];
+
   /*=========================================================
     SECTION 6 — EVENT MANAGER BUTTON
     src: admin-rsvps.js + admin-fetch-events-rsvps.js (merged)
-    FIX: was two separate listeners on the same button — merged into one
+    MIGRATED: now uses Supabase event_rsvps pre-fetched in /admin-data
   =========================================================*/
-  document.addEventListener("click", async (e) => {
+  document.addEventListener("click", (e) => {
     const button = e.target.closest(".app-button.event-manager");
     if (!button) return;
     if (button.dataset.loading === "true") return;
@@ -344,97 +347,50 @@
     console.log("[ADMIN] Event manager button clicked");
 
     try {
-      // --- 6A: fetch RSVP counts per event (/admin-list-rsvp) ---
-      // src: admin-rsvps.js
-      const rsvpRes = await fetch("https://houseofmore.nico-97c.workers.dev/admin-list-rsvp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "get-all-records" })
-      });
-      if (rsvpRes.ok) {
-        const rsvpJson = await rsvpRes.json();
-        const records = rsvpJson.records;
-        if (Array.isArray(records)) {
-          console.log("[ADMIN] RSVP raw record sample:", records[0]);
-          const grouped = {};
-          records.forEach(record => {
-            const data = record.data;
-            if (!data) return;
-            const event_id = data.event_record_id || data.event_id;
-            const { event_name, status, member_name } = data;
-            if (!event_id) return;
-            if (!grouped[event_id]) {
-              grouped[event_id] = { name: event_name, bookedCount: 0, canceledCount: 0, attendees: [] };
-            }
-            if (status === "booked") {
-              grouped[event_id].bookedCount++;
-              grouped[event_id].attendees.push(member_name);
-            }
-            if (status === "canceled") grouped[event_id].canceledCount++;
-          });
-          Object.entries(grouped).forEach(([eventId, info]) => {
-            const eventElement = document.querySelector(`[data-field="${eventId}"]`);
-            if (!eventElement) return;
-            const bookedEl = eventElement.querySelector('[data-field="booked"]');
-            const canceledEl = eventElement.querySelector('[data-field="canceled"]');
-            if (bookedEl) bookedEl.textContent = info.bookedCount;
-            if (canceledEl) canceledEl.textContent = info.canceledCount;
-            const viewLink = eventElement.querySelector(".icon-wrapper.view-event");
-            if (viewLink?.href) {
-              const url = new URL(viewLink.href, window.location.origin);
-              url.searchParams.set("source", "event-manager");
-              url.searchParams.set("event_id", eventId);
-              viewLink.href = url.toString();
-            }
-            const attendeesContainer = eventElement.querySelector(".list-attendees");
-            if (attendeesContainer) {
-              attendeesContainer.innerHTML = "";
-              info.attendees.forEach(memberName => {
-                const div = document.createElement("div");
-                div.textContent = memberName;
-                attendeesContainer.appendChild(div);
-              });
-            }
-          });
-          console.log("[ADMIN] RSVP grouped data:", grouped);
+      // Group RSVPs by event_id from pre-fetched Supabase data
+      const rsvpsByEvent = {};
+      adminRsvps.forEach(rsvp => {
+        const eid = rsvp.event_id;
+        if (!eid) return;
+        if (!rsvpsByEvent[eid]) rsvpsByEvent[eid] = { booked: 0, canceled: 0, attendees: [] };
+        if (rsvp.booking_status === "booked") {
+          rsvpsByEvent[eid].booked++;
+          const m = rsvp.member_profiles;
+          if (m) rsvpsByEvent[eid].attendees.push(`${m.first_name || ""} ${m.last_name || ""}`.trim());
         }
-      }
-
-      // --- 6B: fetch event booking totals (/admin-messages) ---
-      // src: admin-fetch-events-rsvps.js
-      const eventsRes = await fetch("https://houseofmore.nico-97c.workers.dev/admin-messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "list-events" })
-      });
-      if (!eventsRes.ok) throw new Error(`Events fetch failed: ${eventsRes.status}`);
-      const eventsJson = await eventsRes.json();
-      if (!Array.isArray(eventsJson)) throw new Error("Events response is not an array");
-
-      const groupedEvents = {};
-      eventsJson.forEach(record => {
-        const eventId = String(record?.data?.event_record_id || "").trim().toLowerCase();
-        const status = String(record?.data?.status || "").trim().toLowerCase();
-        if (!eventId) return;
-        if (!groupedEvents[eventId]) groupedEvents[eventId] = { booked: 0, canceled: 0, total: 0 };
-        if (status === "booked") groupedEvents[eventId].booked++;
-        if (status === "canceled" || status === "cancelled") groupedEvents[eventId].canceled++;
-        groupedEvents[eventId].total++;
+        if (rsvp.booking_status === "canceled") rsvpsByEvent[eid].canceled++;
       });
 
+      // Populate each Webflow CMS event row
       document.querySelectorAll(".event-manager-item").forEach(item => {
-        const eventId = String(item.querySelector(".event_record_id")?.textContent || "").trim().toLowerCase();
+        const eventId = item.querySelector(".event_record_id")?.textContent?.trim();
         if (!eventId) return;
-        const counts = groupedEvents[eventId] || { booked: 0, canceled: 0, total: 0 };
-        const bookedEl = item.querySelector(".booked-record");
-        const canceledEl = item.querySelector(".canceled-record");
-        const totalEl = item.querySelector(".total-record");
+        const counts = rsvpsByEvent[eventId] || { booked: 0, canceled: 0, attendees: [] };
+        const bookedEl = item.querySelector('[data-field="booked"]');
+        const canceledEl = item.querySelector('[data-field="canceled"]');
         if (bookedEl) bookedEl.textContent = counts.booked;
         if (canceledEl) canceledEl.textContent = counts.canceled;
-        if (totalEl) totalEl.textContent = counts.total;
-      });
-      console.log("[ADMIN] Event RSVP totals:", groupedEvents);
 
+        const viewLink = item.querySelector(".icon-wrapper.view-event");
+        if (viewLink?.href) {
+          const url = new URL(viewLink.href, window.location.origin);
+          url.searchParams.set("source", "event-manager");
+          url.searchParams.set("event_id", eventId);
+          viewLink.href = url.toString();
+        }
+
+        const attendeesContainer = item.querySelector(".list-attendees");
+        if (attendeesContainer) {
+          attendeesContainer.innerHTML = "";
+          counts.attendees.forEach(name => {
+            const div = document.createElement("div");
+            div.textContent = name;
+            attendeesContainer.appendChild(div);
+          });
+        }
+      });
+
+      console.log("[ADMIN] Event manager rendered from Supabase data", rsvpsByEvent);
     } catch (error) {
       console.error("[ADMIN] Event manager error:", error);
     } finally {
@@ -556,7 +512,8 @@
       console.log("[ADMIN] admin-data response:", adminData);
       if (adminData.error) { console.error("[ADMIN] admin-data error:", adminData.error); return; }
 
-      const { members = [], donations = [] } = adminData;
+      const { members = [], donations = [], rsvps = [] } = adminData;
+      adminRsvps = rsvps;
 
       let activeCount = 0, facilitatorCount = 0, frozenCount = 0, pendingCount = 0, rejectedCount = 0, adminCount = 0;
 

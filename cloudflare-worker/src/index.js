@@ -1153,19 +1153,25 @@ async function handleAdminData(request, env, origin) {
     "Authorization": `Bearer ${env.SUPABASE_KEY}`,
   };
 
-  // Fetch members + donations from Supabase in parallel
-  const [membersRes, donationsRes] = await Promise.all([
-    fetch(`${SUPABASE_URL}/rest/v1/member_profiles?select=*&order=created_at.asc`, { headers: sbHeaders }),
+  // Fetch members, donations, events, and RSVPs from Supabase in parallel
+  const [membersRes, donationsRes, eventsRes, rsvpsRes] = await Promise.all([
+    fetch(`${SUPABASE_URL}/rest/v1/member_profiles?select=*,member_questionnaire(*)&order=created_at.asc`, { headers: sbHeaders }),
     fetch(`${SUPABASE_URL}/rest/v1/donations?select=*&order=created_at.desc`,      { headers: sbHeaders }),
+    fetch(`${SUPABASE_URL}/rest/v1/events?select=*&order=event_date.asc`,          { headers: sbHeaders }),
+    fetch(`${SUPABASE_URL}/rest/v1/event_rsvps?select=*,member_profiles(member_id,first_name,last_name)&order=booked_at.asc`, { headers: sbHeaders }),
   ]);
 
   if (!membersRes.ok)   throw new Error(`Supabase member_profiles error (${membersRes.status})`);
   if (!donationsRes.ok) throw new Error(`Supabase donations error (${donationsRes.status})`);
+  if (!eventsRes.ok)    throw new Error(`Supabase events error (${eventsRes.status})`);
+  if (!rsvpsRes.ok)     throw new Error(`Supabase event_rsvps error (${rsvpsRes.status})`);
 
-  const [members, donations] = await Promise.all([membersRes.json(), donationsRes.json()]);
+  const [members, donations, events, rsvps] = await Promise.all([
+    membersRes.json(), donationsRes.json(), eventsRes.json(), rsvpsRes.json(),
+  ]);
 
-  console.log(`[ADMIN DATA] ${members.length} members, ${donations.length} donations`);
-  return new Response(JSON.stringify({ members, donations }), {
+  console.log(`[ADMIN DATA] ${members.length} members, ${donations.length} donations, ${events.length} events, ${rsvps.length} rsvps`);
+  return new Response(JSON.stringify({ members, donations, events, rsvps }), {
     status: 200,
     headers: { "Content-Type": "application/json", ...cors },
   });
