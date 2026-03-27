@@ -99,8 +99,12 @@
     state.event_id = result.event?.id || null;
     const capacity = result.current_capacity ?? 0;
 
-    // Show event info only for admins and facilitators of this specific event
-    const isPrivileged = result.isPrivileged === true;
+    // Show event info if member has admin or facilitator plan
+    const ADMIN_PLAN_ID       = "pln_admin-1823l09h8";
+    const FACILITATOR_PLAN_ID = "pln_facilitator-9o1kw0j5o";
+    const isPrivileged = result.member?.plan_name?.some(
+      p => p.planId === ADMIN_PLAN_ID || p.planId === FACILITATOR_PLAN_ID
+    );
     if (isPrivileged) {
       $$(".event-info-wrapper").forEach(el => el.classList.remove("hide"));
       rsvpBtn?.classList.add("hide");
