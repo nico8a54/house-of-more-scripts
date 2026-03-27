@@ -501,6 +501,7 @@
       event_id: eventId,
       scanned_at: new Date().toISOString(),
     };
+    console.log("[CHECK-IN] Payload:", payload);
     const res = await fetch(WEBHOOK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
