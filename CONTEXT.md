@@ -48,7 +48,7 @@ CORS allowed origins: `https://www.thehouseofmore.com`, `https://thehouseofmore.
 - `POST /memberstack-add-plan` — called by Supabase DB webhook on `member_profiles` INSERT → adds `pln_members-5kbh0gjx` to member in Memberstack
 - `POST /event-data` — fetches event from `events_with_capacity` view by `event_slug` + member plan info from Memberstack in parallel. RSVPs (with embedded `member_profiles`: first_name, last_name, email, member_id) only fetched and returned if member has admin or facilitator plan. Returns `{ event, rsvps, current_capacity, member }`.
 - `POST /member-rsvp-supabase` — handles RSVP booking, cancel, waiting-list for members. Writes `member` boolean to `event_rsvps`.
-- `POST /send-rsvp-email` — called by Supabase DB webhook on `event_rsvps` INSERT (booking confirmation) and UPDATE (cancellation). Fetches event + member from Supabase, sends HTML email via Resend. Skips non-members and non-booking statuses.
+- `POST /send-rsvp-email` — called by Supabase DB webhook on `event_rsvps` INSERT (booking confirmation) and UPDATE (cancellation). Fetches event + member from Supabase, sends HTML email via Resend. Skips non-members and non-booking statuses. `booking_status` values: `"booked"` (confirmed), `"waitlist"`, `"canceled"` — worker writes these, NOT `"booking"`/`"waiting-list"` (those are frontend-only terms).
 - ~~`POST /webflow-event-sync`~~ — removed from Worker, replaced by Supabase Edge Function below
 
 ### Make.com routes (legacy — being phased out)
@@ -294,6 +294,7 @@ Transactional email via Resend is built and tested. Remaining steps before going
 - [ ] Update Worker `from` address from `onboarding@resend.dev` to `bookings@thehouseofmore.com` (or preferred sender)
 - [ ] Add DNS records Resend provides to the domain registrar
 - [ ] Update Supabase webhook `rsvp-email-confirmation` to also trigger on `UPDATE` (currently INSERT only)
-- [ ] Test confirmation email end-to-end with a real RSVP on live site
+- [ ] Test confirmation email end-to-end with a real RSVP on live site (webhook fires, Resend delivers)
 - [ ] Test cancellation email end-to-end
+- Note: Supabase webhook `rsvp-email-confirmation` is configured — INSERT + UPDATE on `event_rsvps`, header `x-webhook-secret`
 - [ ] Handle non-member booking email (currently skipped — Make.com flow still active)
