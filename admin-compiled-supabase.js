@@ -663,8 +663,8 @@
         const clone = applicantTemplate.cloneNode(true);
         clone.setAttribute("data-clone", "true");
         clone.style.display = "grid";
-        setField(clone, "first-name",         member.first_name);
-        setField(clone, "last-name",          member.last_name);
+        setField(clone, "first_name",         member.first_name);
+        setField(clone, "last_name",          member.last_name);
         setField(clone, "email",              member.email);
         setField(clone, "phone",              member.phone);
         setField(clone, "createdAt",          member.date_of_request ? new Date(member.date_of_request).toLocaleDateString() : "");
