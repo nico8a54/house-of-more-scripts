@@ -861,8 +861,8 @@ async function handleMemberRsvpSupabase(payload, env) {
 
 // ─── Facilitator QR check-in (Supabase direct) ───────────────────────────────
 async function handleFacilitatorCheckin(payload, env) {
-  const { qr_text } = payload;
-  if (!qr_text) throw new Error("qr_text is required");
+  const { qr_text, event_slug } = payload;
+  if (!qr_text || !event_slug) throw new Error("qr_text and event_slug are required");
 
   const sbHeaders = {
     "apikey":        env.SUPABASE_KEY,
@@ -872,9 +872,9 @@ async function handleFacilitatorCheckin(payload, env) {
 
   const rsvpId = encodeURIComponent(qr_text);
 
-  // 1. Look up the RSVP record by UUID
+  // 1. Look up the RSVP record by UUID, joining the event slug for validation
   const lookupRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/event_rsvps?id=eq.${rsvpId}&select=id,member_id,booking_status`,
+    `${SUPABASE_URL}/rest/v1/event_rsvps?id=eq.${rsvpId}&select=id,member_id,booking_status,events(event_slug)`,
     { headers: sbHeaders }
   );
   if (!lookupRes.ok) throw new Error(`Supabase lookup failed (${lookupRes.status})`);
@@ -884,6 +884,7 @@ async function handleFacilitatorCheckin(payload, env) {
 
   const rsvp = rows[0];
 
+  if (rsvp.events?.event_slug !== event_slug) return "QR code not valid for this event.";
   if (rsvp.booking_status === "checked") return "Already checked in.";
   if (rsvp.booking_status === "canceled") return "This RSVP was canceled.";
   if (rsvp.booking_status !== "booked" && rsvp.booking_status !== "waitlist") {

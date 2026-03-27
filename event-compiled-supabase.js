@@ -475,8 +475,10 @@
 
   async function fireWebhook(qrText) {
     setStatus("Sending...");
+    const eventSlug = window.location.pathname.split("/").filter(Boolean).pop();
     const payload = {
       qr_text: qrText,
+      event_slug: eventSlug,
     };
     console.log("[CHECK-IN] Payload:", payload);
     const res = await fetch(WEBHOOK_URL, {
