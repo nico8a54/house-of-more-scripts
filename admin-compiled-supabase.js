@@ -525,6 +525,7 @@
 
       const { members = [], donations = [], rsvps = [] } = adminData;
       adminRsvps = rsvps;
+      document.querySelector(".app-button.event-manager")?.click();
 
       let activeCount = 0, facilitatorCount = 0, frozenCount = 0, pendingCount = 0, rejectedCount = 0, adminCount = 0;
 
