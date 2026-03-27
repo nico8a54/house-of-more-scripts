@@ -536,7 +536,8 @@
       const { members = [], donations = [], rsvps = [], events = [] } = adminData;
       adminRsvps = rsvps;
       adminEvents = events;
-      document.querySelector(".app-button.event-manager")?.click();
+      console.log("[ADMIN] All events:", events);
+      console.log("[ADMIN] All RSVPs:", rsvps);
 
       let activeCount = 0, facilitatorCount = 0, frozenCount = 0, pendingCount = 0, rejectedCount = 0, adminCount = 0;
 
