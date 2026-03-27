@@ -573,28 +573,16 @@
 
       const { members = [], donations = [] } = adminData;
 
-      // Plan IDs — must match worker PLAN_IDS
-      const PLAN = {
-        active:      "pln_approved-member-bd2jv0hp1",
-        admin:       "pln_admin-1823l09h8",
-        facilitator: "pln_facilitator-9o1kw0j5o",
-        frozen:      "pln_freeze-yy2kn0ejb",
-        pending:     "pln_members-5kbh0gjx",
-        rejected:    "pln_rejected-fo1l60nm3",
-      };
-
       let activeCount = 0, facilitatorCount = 0, frozenCount = 0, pendingCount = 0, rejectedCount = 0;
 
-      if (members[0]) console.log("[ADMIN] Sample planConnections:", JSON.stringify(members[0].planConnections));
-
       members.forEach(member => {
-        const ids = (member.planConnections || []).map(c => c.planId || "");
-        if (ids.includes(PLAN.admin))    return;
-        if (ids.includes(PLAN.pending))  { pendingCount++;  return; }
-        if (ids.includes(PLAN.rejected)) { rejectedCount++; return; }
-        if (ids.includes(PLAN.frozen))   { frozenCount++;   return; }
-        activeCount++;
-        if (ids.includes(PLAN.facilitator)) facilitatorCount++;
+        const status = (member.application_status || "").toLowerCase();
+        if (status === "admin")       return;
+        if (status === "pending")     { pendingCount++;  return; }
+        if (status === "rejected")    { rejectedCount++; return; }
+        if (status === "frozen")      { frozenCount++;   return; }
+        if (status === "facilitator") { facilitatorCount++; activeCount++; return; }
+        activeCount++; // approved + paid tiers
       });
 
       const grandTotalCents = donations.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
@@ -720,67 +708,6 @@
       if (applicantTemplate) applicantTemplate.style.display = "none";
       if (facilitatorTemplate) facilitatorTemplate.style.display = "none";
 
-      // --- FETCH ALL DONATIONS (runs after members are rendered) ---
-      // src: admin-donations.js
-      const donRes = await fetch("https://houseofmore.nico-97c.workers.dev/donation-list-all", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "list" })
-      });
-      const donBody = await donRes.json();
-      if (Array.isArray(donBody)) {
-        const totalsByMember = {};
-        let grandTotalCents = 0;
-        donBody.forEach(item => {
-          const memberId = item?.data?.member_id;
-          const amountCents = Number(item?.data?.amount) || 0;
-          if (!memberId) return;
-          totalsByMember[memberId] = (totalsByMember[memberId] || 0) + amountCents;
-          grandTotalCents += amountCents;
-        });
-
-        const formatUSD = (n) => new Intl.NumberFormat("en-US", {
-          style: "currency", currency: "USD", maximumFractionDigits: 0
-        }).format(n);
-
-        document.querySelectorAll(".list-block-template.member").forEach(block => {
-          const memberId = block.querySelector('[data-field="member-id"]')?.textContent.trim();
-          if (!memberId) return;
-          const totalCents = totalsByMember[memberId] || 0;
-          const donationEl = block.querySelector('[data-field="member-donations"]');
-          if (donationEl) donationEl.textContent = formatUSD(totalCents / 100);
-        });
-
-        const grandTotalEl = document.querySelector('[data-field="total-donations"]');
-        if (grandTotalEl) grandTotalEl.textContent = formatUSD(grandTotalCents / 100);
-        console.log("[ADMIN] Grand total donations:", formatUSD(grandTotalCents / 100));
-      }
-
-      // --- SUM DONATIONS PER MEMBER (runs after donations are populated) ---
-      // FIX: moved here so it reads values already set by the donations fetch above
-      const renderedMemberBlocks = Array.from(
-        document.querySelectorAll('.list-block-template.member[data-clone="true"]')
-      );
-      const totalsByMemberId = {};
-      renderedMemberBlocks.forEach(block => {
-        const memberId = block.querySelector('[data-field="member-id"]')?.textContent?.trim() || "";
-        if (!memberId) return;
-        const donationRaw = block.querySelector('[data-field="member-donations"]')?.textContent;
-        totalsByMemberId[memberId] = (totalsByMemberId[memberId] || 0) + parseDonationNumber(donationRaw);
-      });
-      renderedMemberBlocks.forEach(block => {
-        const memberId = block.querySelector('[data-field="member-id"]')?.textContent?.trim() || "";
-        if (!memberId) return;
-        const total = totalsByMemberId[memberId] || 0;
-        const donationsEl = block.querySelector('[data-field="member-donations"]');
-        if (donationsEl) donationsEl.textContent = formatCurrency(total);
-        const memberEl = block.querySelector('[data-field="member"]');
-        if (memberEl) {
-          const base = (memberEl.getAttribute("data-base-text") || memberEl.textContent || "").trim();
-          if (!memberEl.getAttribute("data-base-text")) memberEl.setAttribute("data-base-text", base);
-          memberEl.textContent = `${base} ${formatCurrency(total)}`;
-        }
-      });
 
     } catch (error) {
       console.error("[ADMIN] Main render error:", error);

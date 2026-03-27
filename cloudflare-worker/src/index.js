@@ -1097,38 +1097,24 @@ async function handleAdminData(request, env, origin) {
     return new Response("Forbidden", { status: 403, headers: cors });
   }
 
-  // Start donations fetch in parallel with member pagination
-  const donationsPromise = fetch(
-    `${SUPABASE_URL}/rest/v1/donations?select=*&order=created_at.desc`,
-    { headers: { "apikey": env.SUPABASE_KEY, "Authorization": `Bearer ${env.SUPABASE_KEY}` } }
-  );
+  const sbHeaders = {
+    "apikey":        env.SUPABASE_KEY,
+    "Authorization": `Bearer ${env.SUPABASE_KEY}`,
+  };
 
-  // Paginate all Memberstack members
-  const allMembers = [];
-  let after = null;
-  let hasNextPage = true;
-  while (hasNextPage) {
-    const qs = new URLSearchParams({ limit: "100" });
-    if (after) qs.set("after", after);
-    const res = await fetch(`https://admin.memberstack.com/members?${qs}`, {
-      headers: { "x-api-key": env.MEMBERSTACK_KEY },
-    });
-    if (!res.ok) throw new Error(`Memberstack list members error (${res.status})`);
-    const json = await res.json();
-    const page = Array.isArray(json.data) ? json.data : [];
-    allMembers.push(...page);
-    hasNextPage = json.hasNextPage ?? false;
-    after = json.lastCursor ?? null;
-    if (!hasNextPage || !after) break;
-  }
+  // Fetch members + donations from Supabase in parallel
+  const [membersRes, donationsRes] = await Promise.all([
+    fetch(`${SUPABASE_URL}/rest/v1/member_profiles?select=*&order=created_at.asc`, { headers: sbHeaders }),
+    fetch(`${SUPABASE_URL}/rest/v1/donations?select=*&order=created_at.desc`,      { headers: sbHeaders }),
+  ]);
 
-  // Await donations
-  const donationsRes = await donationsPromise;
+  if (!membersRes.ok)   throw new Error(`Supabase member_profiles error (${membersRes.status})`);
   if (!donationsRes.ok) throw new Error(`Supabase donations error (${donationsRes.status})`);
-  const donations = await donationsRes.json();
 
-  console.log(`[ADMIN DATA] ${allMembers.length} members, ${donations.length} donations`);
-  return new Response(JSON.stringify({ members: allMembers, donations }), {
+  const [members, donations] = await Promise.all([membersRes.json(), donationsRes.json()]);
+
+  console.log(`[ADMIN DATA] ${members.length} members, ${donations.length} donations`);
+  return new Response(JSON.stringify({ members, donations }), {
     status: 200,
     headers: { "Content-Type": "application/json", ...cors },
   });
