@@ -539,6 +539,17 @@
       console.log("[ADMIN] All events:", events);
       console.log("[ADMIN] All RSVPs:", rsvps);
 
+      // Pair Supabase events with CMS .facilitator-event elements by slug
+      const eventsBySlug = {};
+      events.forEach(ev => { if (ev.event_slug) eventsBySlug[ev.event_slug] = ev; });
+
+      const slugPairs = [];
+      document.querySelectorAll(".facilitator-event").forEach(item => {
+        const cmsSlug = item.querySelector('[data-field="event_slug"]')?.textContent?.trim();
+        slugPairs.push({ cmsSlug, supabaseEvent: eventsBySlug[cmsSlug] || null });
+      });
+      console.log("[ADMIN] Slug pairs (CMS ↔ Supabase):", slugPairs);
+
       let activeCount = 0, facilitatorCount = 0, frozenCount = 0, pendingCount = 0, rejectedCount = 0, adminCount = 0;
 
       members.forEach(member => {
