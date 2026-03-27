@@ -48,6 +48,7 @@ CORS allowed origins: `https://www.thehouseofmore.com`, `https://thehouseofmore.
 - `POST /memberstack-add-plan` — called by Supabase DB webhook on `member_profiles` INSERT → adds `pln_members-5kbh0gjx` to member in Memberstack
 - `POST /event-data` — fetches event from `events_with_capacity` view by `event_slug` + member plan info from Memberstack in parallel. RSVPs (with embedded `member_profiles`: first_name, last_name, email, member_id) only fetched and returned if member has admin or facilitator plan. Returns `{ event, rsvps, current_capacity, member }`.
 - `POST /member-rsvp-supabase` — handles RSVP booking, cancel, waiting-list for members. Writes `member` boolean to `event_rsvps`.
+- `POST /send-rsvp-email` — called by Supabase DB webhook on `event_rsvps` INSERT (booking confirmation) and UPDATE (cancellation). Fetches event + member from Supabase, sends HTML email via Resend. Skips non-members and non-booking statuses.
 - ~~`POST /webflow-event-sync`~~ — removed from Worker, replaced by Supabase Edge Function below
 
 ### Make.com routes (legacy — being phased out)
@@ -69,7 +70,7 @@ URL: `https://wioktwzioxzgmntgxsme.supabase.co`
 - `donations` — id, member_id, email, amount (int, cents), type, status, receipt_url, transaction_id, recurrent_status
 - `messages` — id, message_record_id, member_id, subject, body, read (bool), erased (bool), sent_by, sent_at
 - `events` — id (text PK = Webflow item ID), event_name, event_date, event_status, event_capacity (int), facilitator_name, facilitator_email, event_link, event_slug, event_location, event_category (text), event_gender (text), event_duration (numeric — decimal hours e.g. 0.5, 1, 2), event_video_link, created_at, updated_at
-- `events_with_capacity` (view) — all events columns + event_current_capacity, booked_count, canceled_count, waitlist_count (joins event_rsvps on event_rsvps.event_id = events.id)
+- `events_with_capacity` (view) — all events columns + event_current_capacity, booked_count, canceled_count, checked_count, waitlist_count (joins event_rsvps on event_rsvps.event_id = events.id). Formula: `event_current_capacity = event_capacity - booked_count - checked_count`
 
 ### Field constants (in worker)
 - `PROFILE_FIELDS` — first_name, last_name, phone, birthday, gender, marital_status, location
@@ -282,3 +283,17 @@ node stress-test.js --fix-plans # add Memberstack plan to all 500, 25/sec thrott
 5. `node stress-test.js --phase 1`
 6. `node stress-test.js --fix-plans`
 7. Continue with phases 2, 3, 4
+
+---
+
+## Resend Setup — Pending
+
+Transactional email via Resend is built and tested. Remaining steps before going live:
+
+- [ ] Verify domain `thehouseofmore.com` in Resend (resend.com/domains)
+- [ ] Update Worker `from` address from `onboarding@resend.dev` to `bookings@thehouseofmore.com` (or preferred sender)
+- [ ] Add DNS records Resend provides to the domain registrar
+- [ ] Update Supabase webhook `rsvp-email-confirmation` to also trigger on `UPDATE` (currently INSERT only)
+- [ ] Test confirmation email end-to-end with a real RSVP on live site
+- [ ] Test cancellation email end-to-end
+- [ ] Handle non-member booking email (currently skipped — Make.com flow still active)
