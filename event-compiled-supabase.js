@@ -1,3 +1,4 @@
+// Depends on: https://unpkg.com/html5-qrcode (loaded via Webflow page embed, before this script)
 (function () {
   "use strict";
 
@@ -429,7 +430,7 @@
     Camera-based QR scanner for facilitator check-in
   =========================================================*/
   const WEBHOOK_URL =
-    "https://houseofmore.nico-97c.workers.dev/facilitator-checkin";
+    "https://houseofmore.nico-97c.workers.dev/facilitator-checkin-supabase";
 
   const startBtn = document.getElementById("startBtn");
   const stopBtn = document.getElementById("stopBtn");

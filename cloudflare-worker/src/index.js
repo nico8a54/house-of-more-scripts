@@ -859,6 +859,71 @@ async function handleMemberRsvpSupabase(payload, env) {
     : { message: "You're booked! See you there. Check your Inbox for the invitation link.", success: true };
 }
 
+// ─── Facilitator QR check-in (Supabase direct) ───────────────────────────────
+async function handleFacilitatorCheckin(payload, env) {
+  const { qr_text, event_id } = payload;
+  if (!qr_text || !event_id) throw new Error("qr_text and event_id are required");
+
+  const SUPABASE_URL = env.SUPABASE_URL || "https://qgaqxftvuosgdoqvkxet.supabase.co";
+  const sbHeaders = {
+    "apikey":        env.SUPABASE_KEY,
+    "Authorization": `Bearer ${env.SUPABASE_KEY}`,
+    "Content-Type":  "application/json",
+  };
+
+  const eid  = encodeURIComponent(event_id);
+  const rsvpId = encodeURIComponent(qr_text);
+
+  // 1. Look up the RSVP record by UUID + event_id
+  const lookupRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/event_rsvps?id=eq.${rsvpId}&event_id=eq.${eid}&select=id,member_id,booking_status`,
+    { headers: sbHeaders }
+  );
+  if (!lookupRes.ok) throw new Error(`Supabase lookup failed (${lookupRes.status})`);
+  const rows = await lookupRes.json();
+
+  if (!rows.length) return "QR code not valid for this event.";
+
+  const rsvp = rows[0];
+
+  if (rsvp.booking_status === "checked") return "Already checked in.";
+  if (rsvp.booking_status === "canceled") return "This RSVP was canceled.";
+  if (rsvp.booking_status !== "booked" && rsvp.booking_status !== "waitlist") {
+    return `Unexpected status: ${rsvp.booking_status}`;
+  }
+
+  // 2. Mark as checked
+  const patchRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/event_rsvps?id=eq.${rsvpId}`,
+    {
+      method: "PATCH",
+      headers: { ...sbHeaders, "Prefer": "return=minimal" },
+      body: JSON.stringify({ booking_status: "checked" }),
+    }
+  );
+  if (!patchRes.ok) throw new Error(`Supabase patch failed (${patchRes.status})`);
+
+  // 3. Fetch member profile for display
+  const mid = encodeURIComponent(rsvp.member_id);
+  const profileRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/member_profiles?member_id=eq.${mid}&select=first_name,last_name,email`,
+    { headers: sbHeaders }
+  );
+  let first_name = "", last_name = "", email = "";
+  if (profileRes.ok) {
+    const profiles = await profileRes.json();
+    if (profiles.length) ({ first_name, last_name, email } = profiles[0]);
+  }
+
+  return {
+    member_name:    `${first_name} ${last_name}`.trim(),
+    id:             rsvp.member_id,
+    email,
+    rsvp_record_id: rsvp.id,
+    booking_status: "checked",
+  };
+}
+
 // ─── Route map: path → Make webhook URL ──────────────────────────────────────
 const ROUTES = {
   // Member
@@ -1127,6 +1192,26 @@ export default {
       try {
         const data = await handleMemberProfileSupabase(payload, env);
         return new Response(JSON.stringify(data), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      }
+    }
+
+    // Facilitator check-in (Supabase direct)
+    if (path === "/facilitator-checkin-supabase") {
+      if (!env.SUPABASE_KEY) return new Response("Server misconfiguration", { status: 500 });
+      let payload;
+      try { payload = await request.json(); } catch { return new Response("Bad request", { status: 400 }); }
+      try {
+        const result = await handleFacilitatorCheckin(payload, env);
+        return new Response(JSON.stringify(result), {
           status: 200,
           headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
         });
