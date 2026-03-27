@@ -569,7 +569,44 @@
       });
       const adminData = await adminDataRes.json();
       console.log("[ADMIN] admin-data response:", adminData);
-      return; // rendering disabled — console.log only for now
+      if (adminData.error) { console.error("[ADMIN] admin-data error:", adminData.error); return; }
+
+      const { members = [], donations = [] } = adminData;
+
+      // Plan IDs — must match worker PLAN_IDS
+      const PLAN = {
+        active:      "pln_approved-member-bd2jv0hp1",
+        admin:       "pln_admin-1823l09h8",
+        facilitator: "pln_facilitator-9o1kw0j5o",
+        frozen:      "pln_freeze-yy2kn0ejb",
+        pending:     "pln_members-5kbh0gjx",
+        rejected:    "pln_rejected-fo1l60nm3",
+      };
+
+      let activeCount = 0, facilitatorCount = 0, frozenCount = 0, pendingCount = 0, rejectedCount = 0;
+
+      members.forEach(member => {
+        const ids = (member.planConnections || []).map(c => c.planId || "");
+        if (ids.includes(PLAN.admin))    return;
+        if (ids.includes(PLAN.pending))  { pendingCount++;  return; }
+        if (ids.includes(PLAN.rejected)) { rejectedCount++; return; }
+        activeCount++;
+        if (ids.includes(PLAN.frozen))      frozenCount++;
+        if (ids.includes(PLAN.facilitator)) facilitatorCount++;
+      });
+
+      const grandTotalCents = donations.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+      const formatUSD = n => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+
+      const setCounter = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+      setCounter("active-members",       activeCount);
+      setCounter("facilitators",         facilitatorCount);
+      setCounter("frozen-members",       frozenCount);
+      setCounter("apllication-pendings", pendingCount);
+      setCounter("rejected-applicants",  rejectedCount);
+      setCounter("total-donations",      formatUSD(grandTotalCents / 100));
+
+      console.log("[ADMIN] Counters:", { activeCount, facilitatorCount, frozenCount, pendingCount, rejectedCount, grandTotal: formatUSD(grandTotalCents / 100) });
 
       const alertEl = document.getElementById("alert");
       const applicantModal = document.querySelector(".applicant-modal");
