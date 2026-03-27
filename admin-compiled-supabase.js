@@ -590,8 +590,8 @@
         if (ids.includes(PLAN.admin))    return;
         if (ids.includes(PLAN.pending))  { pendingCount++;  return; }
         if (ids.includes(PLAN.rejected)) { rejectedCount++; return; }
+        if (ids.includes(PLAN.frozen))   { frozenCount++;   return; }
         activeCount++;
-        if (ids.includes(PLAN.frozen))      frozenCount++;
         if (ids.includes(PLAN.facilitator)) facilitatorCount++;
       });
 
