@@ -573,11 +573,11 @@
 
       const { members = [], donations = [] } = adminData;
 
-      let activeCount = 0, facilitatorCount = 0, frozenCount = 0, pendingCount = 0, rejectedCount = 0;
+      let activeCount = 0, facilitatorCount = 0, frozenCount = 0, pendingCount = 0, rejectedCount = 0, adminCount = 0;
 
       members.forEach(member => {
         const status = (member.application_status || "").toLowerCase();
-        if (status === "admin")       return;
+        if (status === "admin")       { adminCount++;    return; }
         if (status === "pending")     { pendingCount++;  return; }
         if (status === "rejected")    { rejectedCount++; return; }
         if (status === "frozen")      { frozenCount++;   return; }
@@ -594,9 +594,10 @@
       setCounter("frozen-members",       frozenCount);
       setCounter("apllication-pendings", pendingCount);
       setCounter("rejected-applicants",  rejectedCount);
+      setCounter("admin-members",        adminCount);
       setCounter("total-donations",      formatUSD(grandTotalCents / 100));
 
-      console.log("[ADMIN] Counters:", { activeCount, facilitatorCount, frozenCount, pendingCount, rejectedCount, grandTotal: formatUSD(grandTotalCents / 100) });
+      console.log("[ADMIN] Counters:", { activeCount, facilitatorCount, frozenCount, pendingCount, rejectedCount, adminCount, grandTotal: formatUSD(grandTotalCents / 100) });
 
       const alertEl = document.getElementById("alert");
       const applicantModal = document.querySelector(".applicant-modal");
