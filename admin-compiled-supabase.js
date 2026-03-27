@@ -611,43 +611,50 @@
       const applicantTemplate = document.querySelector(".list-block-template.applicant");
       const facilitatorTemplate = document.querySelector(".list-block-template.facilitators");
 
-      const attachOpenModal = (clone, memberId, effectivePlan, connections) => {
+      const attachOpenModal = (clone, memberId, effectivePlan) => {
         clone.querySelector(".icon-wrapper.view-record")?.addEventListener("click", async () => {
           activeMemberId = memberId;
           applicantModal?.classList.remove("hide");
           const details = await fetchMemberDetails(memberId);
           if (!details) return;
-          Object.entries(details).forEach(([key, value]) => {
-            setField(applicantModal, key, value);
-            if (key === "application_status") {
-              const isFrozen = /^frozen$/i.test(String(effectivePlan).trim());
-              const status = isFrozen ? effectivePlan : value;
-              const modalStatusTag = applicantModal.querySelector('[data-field="application_status"]');
 
-              // Remove any previously cloned status tags
-              applicantModal.querySelectorAll('.status-tag[data-extra-plan]').forEach(el => el.remove());
+          const q      = details.questionnaire || {};
+          const status = details.application_status || effectivePlan || "";
 
-              // If member has multiple distinct plans, clone the status tag for each
-              const uniquePlans = [...new Set((connections || []).map(p => String(p.planName).trim()).filter(Boolean))];
-              if (uniquePlans.length > 1 && modalStatusTag) {
-                applyStatusClass(modalStatusTag, uniquePlans[0]);
-                modalStatusTag.textContent = uniquePlans[0];
-                uniquePlans.slice(1).forEach(plan => {
-                  const extra = modalStatusTag.cloneNode(true);
-                  extra.setAttribute("data-extra-plan", "true");
-                  extra.removeAttribute("data-field");
-                  applyStatusClass(extra, plan);
-                  extra.textContent = plan;
-                  modalStatusTag.parentElement.insertBefore(extra, modalStatusTag.nextSibling);
-                });
-              } else {
-                applyStatusClass(modalStatusTag, status);
-                if (modalStatusTag) modalStatusTag.textContent = status;
-              }
+          // --- Profile fields ---
+          setField(applicantModal, "name",           details.first_name);
+          setField(applicantModal, "last_name",      details.last_name);
+          setField(applicantModal, "email",          details.email);
+          setField(applicantModal, "phone",          details.phone);
+          setField(applicantModal, "location",       details.location);
+          setField(applicantModal, "marital_status", details.marital_status);
+          setField(applicantModal, "birthday",       details.birthday);
+          setField(applicantModal, "submitted_at",   details.date_of_request ? new Date(details.date_of_request).toLocaleDateString() : "");
 
-              updateActionButtons(status);
-            }
-          });
+          // gender uses data-ms-member, not data-field
+          const genderEl = applicantModal.querySelector('[data-ms-member="gender"]');
+          if (genderEl) genderEl.textContent = details.gender ?? "";
+
+          // --- Questionnaire fields ---
+          setField(applicantModal, "where_are_you_on_your_path",                  q.where_are_you_on_your_path);
+          setField(applicantModal, "how_can_we_support_you",                      q.how_can_we_support_you);
+          setField(applicantModal, "how_did_you_hear_about_the_house_of_more",    q.how_did_you_hear_about_the_house_of_more);
+          setField(applicantModal, "have_you_been_with_the_house_of_more",        q.have_you_been_with_the_house_of_more);
+          setField(applicantModal, "how_many_events_have_you_attended",           q.how_many_events_have_you_attended_at_the_hom);
+          setField(applicantModal, "how_many_events_per_month_can_you_participate", q.how_many_events_per_month_can_you_participate);
+          setField(applicantModal, "what_draws_you_to_the_house_of_more",         q.what_draws_you_to_the_house_of_more);
+          setField(applicantModal, "community_and_contribution",                  q.community_and_contribution);
+          setField(applicantModal, "skills_to_share",                             q.skills_to_share);
+          setField(applicantModal, "is_there_anything_else",                      q.is_there_anything_else);
+          setField(applicantModal, "do_you_feel_aligned_with_the_house_of_more",  q.do_you_feel_aligned_with_the_house_of_more);
+          setField(applicantModal, "i_commit_to_respecting_the_house_of_more",    q.i_commit_to_respecting_the_house_of_more != null ? String(q.i_commit_to_respecting_the_house_of_more) : "");
+
+          // --- Status tag ---
+          applicantModal.querySelectorAll('.status-tag[data-extra-plan]').forEach(el => el.remove());
+          const modalStatusTag = applicantModal.querySelector('[data-field="application_status"]');
+          applyStatusClass(modalStatusTag, status);
+          if (modalStatusTag) modalStatusTag.textContent = status;
+          updateActionButtons(status);
         });
       };
 
@@ -672,7 +679,7 @@
         setField(clone, "application_status", "pending");
         setInitials(clone, member.first_name, member.last_name);
         applyStatusClass(clone.querySelector(".status-tag"), "pending");
-        attachOpenModal(clone, member.member_id, "pending", []);
+        attachOpenModal(clone, member.member_id, "pending");
         applicantParent.appendChild(clone);
       });
 
