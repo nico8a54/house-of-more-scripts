@@ -226,6 +226,15 @@
     const messageRsvpAlert = $(".message-rsvp-alert");
     const messageRespond = $(".message-respond");
 
+    let answerShouldGoBack = false;
+
+    function showAnswerModal(message, goBack = false) {
+      if (!answerModal || !messageRespond) return;
+      messageRespond.textContent = message;
+      answerModal.classList.remove("hide");
+      answerShouldGoBack = goBack;
+    }
+
     function getRsvpMode() {
       if (!rsvpBtn) return "booking";
       if (isCancelMode || rsvpBtn.classList.contains("cancel")) return "cancel";
@@ -377,15 +386,14 @@
 
           rsvpAlertModal?.classList.add("hide");
 
-          if (answerModal && messageRespond && result.message) {
-            messageRespond.textContent = result.message;
-            answerModal.classList.remove("hide");
+          if (result.message) {
+            showAnswerModal(result.message, result.success === true);
           } else {
-            alert("The booking didn't go through.");
+            showAnswerModal("Something went wrong. Please try again.");
           }
         } catch (err) {
           console.error("[RSVP] error:", err);
-          alert("The booking didn't go through.");
+          showAnswerModal("Something went wrong. Please try again.");
         } finally {
           isSubmittingRsvp = false;
           rsvpConfirmBtn.disabled = false;
@@ -397,8 +405,12 @@
     if (closeAnswerModalBtn) {
       closeAnswerModalBtn.addEventListener("click", (e) => {
         e.preventDefault();
-        sessionStorage.setItem("triggerMyEvents", "true");
-        window.history.back();
+        answerModal?.classList.add("hide");
+        if (answerShouldGoBack) {
+          sessionStorage.setItem("triggerMyEvents", "true");
+          window.history.back();
+        }
+        answerShouldGoBack = false;
       });
     }
   });

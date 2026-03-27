@@ -788,7 +788,7 @@ async function handleMemberRsvpSupabase(payload, env) {
   if (!eventRes.ok) throw new Error("Event lookup failed");
   const events = await eventRes.json();
   const event = events[0];
-  if (!event) return "Event not found.";
+  if (!event) return { message: "Event not found.", success: false };
 
   const eventId = event.id;
   const mid = encodeURIComponent(member_id);
@@ -808,7 +808,7 @@ async function handleMemberRsvpSupabase(payload, env) {
       const err = await res.text();
       throw new Error(`Cancel failed (${res.status}): ${err}`);
     }
-    return "You have canceled your attendance for this event.";
+    return { message: "You have canceled your attendance for this event.", success: true };
   }
 
   // Check for existing active RSVP
@@ -818,7 +818,7 @@ async function handleMemberRsvpSupabase(payload, env) {
   );
   if (existingRes.ok) {
     const existing = await existingRes.json();
-    if (existing.length > 0) return "You have already booked this event.";
+    if (existing.length > 0) return { message: "You're already booked for this event.", success: false };
   }
 
   // Determine booking status based on real capacity
@@ -845,8 +845,8 @@ async function handleMemberRsvpSupabase(payload, env) {
   }
 
   return rsvpStatus === "waitlist"
-    ? "You have sign up to a waiting list."
-    : "You have successfully booked this event.";
+    ? { message: "You've been added to the waiting list.", success: true }
+    : { message: "You're booked! See you there.", success: true };
 }
 
 // ─── Route map: path → Make webhook URL ──────────────────────────────────────
@@ -1089,7 +1089,7 @@ export default {
       try { payload = await request.json(); } catch { return new Response("Bad request", { status: 400 }); }
       try {
         const result = await handleMemberRsvpSupabase(payload, env);
-        return new Response(JSON.stringify({ message: result }), {
+        return new Response(JSON.stringify(result), {
           status: 200,
           headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
         });
