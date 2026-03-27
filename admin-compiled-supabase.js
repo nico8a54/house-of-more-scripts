@@ -585,6 +585,8 @@
 
       let activeCount = 0, facilitatorCount = 0, frozenCount = 0, pendingCount = 0, rejectedCount = 0;
 
+      if (members[0]) console.log("[ADMIN] Sample planConnections:", JSON.stringify(members[0].planConnections));
+
       members.forEach(member => {
         const ids = (member.planConnections || []).map(c => c.planId || "");
         if (ids.includes(PLAN.admin))    return;
@@ -713,14 +715,7 @@
         parent.appendChild(clone);
       });
 
-      // --- COUNTERS + ALERT ---
-      if (alertEl) alertEl.style.display = pendingCount > 0 ? "block" : "none";
-      const el = (id) => document.getElementById(id);
-      if (el("active-members")) el("active-members").textContent = approvedCount;
-      if (el("apllication-pendings")) el("apllication-pendings").textContent = pendingCount;
-      if (el("frozen-members")) el("frozen-members").textContent = frozenCount;
-      if (el("rejected-applicants")) el("rejected-applicants").textContent = rejectedCount;
-      if (el("facilitators")) el("facilitators").textContent = facilitatorCount;
+      // counters already rendered above
       if (memberTemplate) memberTemplate.style.display = "none";
       if (applicantTemplate) applicantTemplate.style.display = "none";
       if (facilitatorTemplate) facilitatorTemplate.style.display = "none";
