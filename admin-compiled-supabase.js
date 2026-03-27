@@ -651,36 +651,29 @@
         });
       };
 
-      // --- RENDER MEMBERS + APPLICANTS ---
+      // --- RENDER APPLICANTS (pending) ---
+      if (applicantTemplate) applicantTemplate.style.display = "none";
+      const applicantParent = applicantTemplate?.parentElement;
+
       members.forEach(member => {
-        const connections = member.planConnections || [];
-        const frozenConn = connections.find(p => /^frozen$/i.test(String(p.planName).trim()));
-        const planName = (frozenConn || connections[0])?.planName;
-        if (!planName) return;
-        const normalizedPlan = planName.trim().toLowerCase();
-        const isPending = normalizedPlan === "pending";
-        if (normalizedPlan === "pending") pendingCount++;
-        if (normalizedPlan === "frozen") frozenCount++;
-        if (normalizedPlan === "rejected") rejectedCount++;
-        const isExcluded = /^(frozen|admin|rejected|pending)$/i.test(normalizedPlan);
-        if (!isExcluded) approvedCount++;
-        const template = isPending ? applicantTemplate : memberTemplate;
-        const parent = template?.parentElement;
-        if (!template || !parent) return;
-        const clone = template.cloneNode(true);
+        const status = (member.application_status || "").toLowerCase();
+        if (status !== "pending") return;
+        if (!applicantTemplate || !applicantParent) return;
+
+        const clone = applicantTemplate.cloneNode(true);
         clone.setAttribute("data-clone", "true");
-        setField(clone, "first-name", member.customFields?.["first-name"]);
-        setField(clone, "last-name", member.customFields?.["last-name"]);
-        setField(clone, "email", member.auth?.email);
-        setField(clone, "phone", member.customFields?.phone);
-        setField(clone, "createdAt", new Date(member.createdAt).toLocaleDateString());
-        setField(clone, "member-id", member.id);
-        setField(clone, "application_status", planName);
-        setInitials(clone, member.customFields?.["first-name"], member.customFields?.["last-name"]);
-        applyStatusClass(clone.querySelector(".status-tag"), planName);
-        attachOpenModal(clone, member.id, planName, connections);
         clone.style.display = "grid";
-        parent.appendChild(clone);
+        setField(clone, "first-name",         member.first_name);
+        setField(clone, "last-name",          member.last_name);
+        setField(clone, "email",              member.email);
+        setField(clone, "phone",              member.phone);
+        setField(clone, "createdAt",          member.date_of_request ? new Date(member.date_of_request).toLocaleDateString() : "");
+        setField(clone, "member-id",          member.member_id);
+        setField(clone, "application_status", "pending");
+        setInitials(clone, member.first_name, member.last_name);
+        applyStatusClass(clone.querySelector(".status-tag"), "pending");
+        attachOpenModal(clone, member.member_id, "pending", []);
+        applicantParent.appendChild(clone);
       });
 
       // --- RENDER FACILITATORS ---
