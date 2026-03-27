@@ -333,6 +333,7 @@
 
   // Shared state: populated by load handler, consumed by event manager button
   let adminRsvps = [];
+  let adminEvents = [];
 
   /*=========================================================
     SECTION 6 — EVENT MANAGER BUTTON
@@ -352,13 +353,13 @@
       adminRsvps.forEach(rsvp => {
         const eid = rsvp.event_id;
         if (!eid) return;
-        if (!rsvpsByEvent[eid]) rsvpsByEvent[eid] = { booked: 0, canceled: 0, attendees: [] };
-        if (rsvp.booking_status === "booked") {
-          rsvpsByEvent[eid].booked++;
+        if (!rsvpsByEvent[eid]) rsvpsByEvent[eid] = { booked: 0, canceled: 0, checked: 0, "no-show": 0, attendees: [] };
+        const s = rsvp.booking_status;
+        if (s in rsvpsByEvent[eid]) rsvpsByEvent[eid][s]++;
+        if (s === "booked") {
           const m = rsvp.member_profiles;
           if (m) rsvpsByEvent[eid].attendees.push(`${m.first_name || ""} ${m.last_name || ""}`.trim());
         }
-        if (rsvp.booking_status === "canceled") rsvpsByEvent[eid].canceled++;
       });
 
       // Populate each Webflow CMS event row
@@ -390,15 +391,24 @@
         }
       });
 
-      // Populate facilitator event cards (same table structure, same matching key)
+      // Build event lookup for capacity + status
+      const eventsById = {};
+      adminEvents.forEach(ev => { if (ev.id) eventsById[ev.id] = ev; });
+
+      // Populate facilitator event cards
       document.querySelectorAll(".facilitator-event").forEach(item => {
         const eventId = item.querySelector(".event-record-id")?.textContent?.trim();
         if (!eventId) return;
-        const counts = rsvpsByEvent[eventId] || { booked: 0, canceled: 0, attendees: [] };
-        const bookedEl = item.querySelector('[data-field="booked"]');
-        const canceledEl = item.querySelector('[data-field="canceled"]');
-        if (bookedEl) bookedEl.textContent = counts.booked;
-        if (canceledEl) canceledEl.textContent = counts.canceled;
+        const counts = rsvpsByEvent[eventId] || { booked: 0, canceled: 0, checked: 0, "no-show": 0 };
+        const ev = eventsById[eventId] || {};
+        ["booked", "canceled", "checked", "no-show"].forEach(status => {
+          const el = item.querySelector(`[data-field="${status}"]`);
+          if (el) el.textContent = counts[status] ?? 0;
+        });
+        const capacityEl = item.querySelector('[data-field="event_current_capacity"]');
+        if (capacityEl) capacityEl.textContent = ev.event_capacity ?? "";
+        const statusEl = item.querySelector('[data-field="event_status"]');
+        if (statusEl) statusEl.textContent = ev.event_status ?? "";
       });
 
       console.log("[ADMIN] Event manager rendered from Supabase data", rsvpsByEvent);
@@ -523,8 +533,9 @@
       console.log("[ADMIN] admin-data response:", adminData);
       if (adminData.error) { console.error("[ADMIN] admin-data error:", adminData.error); return; }
 
-      const { members = [], donations = [], rsvps = [] } = adminData;
+      const { members = [], donations = [], rsvps = [], events = [] } = adminData;
       adminRsvps = rsvps;
+      adminEvents = events;
       document.querySelector(".app-button.event-manager")?.click();
 
       let activeCount = 0, facilitatorCount = 0, frozenCount = 0, pendingCount = 0, rejectedCount = 0, adminCount = 0;
