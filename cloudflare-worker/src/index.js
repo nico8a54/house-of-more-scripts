@@ -821,6 +821,16 @@ async function handleMemberRsvpSupabase(payload, env) {
     if (existing.length > 0) return { message: "You have booked this event already! Check My Events, and your Email inbox.", success: false, alreadyBooked: true };
   }
 
+  // Check for prior cancellation
+  const canceledRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/event_rsvps?event_id=eq.${eid}&member_id=eq.${mid}&booking_status=eq.canceled&select=id`,
+    { headers: sbHeaders }
+  );
+  if (canceledRes.ok) {
+    const canceled = await canceledRes.json();
+    if (canceled.length > 0) return { message: "You've canceled this event before. If you want to book this event, please send a request to info@thehouseofmore.com", success: false };
+  }
+
   // Determine booking status based on real capacity
   const currentCapacity = event.event_current_capacity ?? 0;
   const rsvpStatus = currentCapacity > 0 ? "booked" : "waitlist";
