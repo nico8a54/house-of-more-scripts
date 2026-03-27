@@ -418,13 +418,16 @@ async function handleEventData(payload, env) {
   if (msRes?.ok) {
     const msData = await msRes.json();
     const connections = msData?.data?.planConnections || [];
-    member = { plan_name: parsePlanConnections(connections) };
+    const memberEmail = msData?.data?.auth?.email || null;
+    member = { plan_name: parsePlanConnections(connections), email: memberEmail };
   }
 
-  // Only fetch RSVPs with member profiles for admin or facilitator
-  const isPrivileged = member?.plan_name?.some(
-    p => p.planId === PLAN_IDS.admin || p.planId === PLAN_IDS.facilitator
-  );
+  // Only fetch RSVPs with member profiles for admin, or facilitator of this specific event
+  const isAdmin = member?.plan_name?.some(p => p.planId === PLAN_IDS.admin);
+  const isFacilitatorForThisEvent = member?.plan_name?.some(p => p.planId === PLAN_IDS.facilitator)
+    && member?.email
+    && event.facilitator_email === member.email;
+  const isPrivileged = isAdmin || isFacilitatorForThisEvent;
 
   let rsvps = [];
   if (isPrivileged) {
@@ -436,7 +439,7 @@ async function handleEventData(payload, env) {
     rsvps = rsvpsRes.ok ? await rsvpsRes.json() : [];
   }
 
-  return { event, rsvps, current_capacity: event.event_current_capacity ?? 0, member };
+  return { event, rsvps, current_capacity: event.event_current_capacity ?? 0, member, isPrivileged: !!isPrivileged };
 }
 
 async function handleMemberRsvpSupabase(payload, env) {
