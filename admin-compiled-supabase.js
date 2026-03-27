@@ -545,8 +545,8 @@
 
       const slugPairs = [];
       document.querySelectorAll(".facilitator-event").forEach(item => {
-        const cmsSlug = item.querySelector('[data-field="event_slug"]')?.textContent?.trim();
-        slugPairs.push({ cmsSlug, supabaseEvent: eventsBySlug[cmsSlug] || null });
+        const cmsSlug = item.querySelector('[data-field="slug"]')?.textContent?.trim();
+        slugPairs.push({ cmsSlug, supabaseEvent: eventsBySlug[cmsSlug] || null, el: item });
       });
       console.log("[ADMIN] Slug pairs (CMS ↔ Supabase):", slugPairs);
 
