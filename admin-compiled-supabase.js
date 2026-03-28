@@ -533,7 +533,7 @@
       console.log("[ADMIN] admin-data response:", adminData);
       if (adminData.error) { console.error("[ADMIN] admin-data error:", adminData.error); return; }
 
-      const { members = [], donations = [], rsvps = [], events = [] } = adminData;
+      const { members = [], donations = [], rsvps = [], events = [], adminMessages = [] } = adminData;
       adminRsvps = rsvps;
       adminEvents = events;
       console.log("[ADMIN] All events:", events);
@@ -575,6 +575,28 @@
         });
       } else {
         console.warn("[ADMIN] .event-template not found");
+      }
+
+      // Clone .message-template.admin for each admin message
+      const msgTemplate = document.querySelector(".message-template.admin");
+      const msgContainer = msgTemplate?.parentElement;
+      if (msgTemplate && msgContainer) {
+        msgTemplate.classList.add("hide");
+        adminMessages.forEach(msg => {
+          const clone = msgTemplate.cloneNode(true);
+          clone.classList.remove("hide");
+          const set = (field, val) => {
+            const el = clone.querySelector(`[data-field="${field}"]`);
+            if (el) el.textContent = val ?? "";
+          };
+          set("subject", msg.subject);
+          set("message", msg.message);
+          set("recipient", msg.recipient);
+          set("date", msg.date);
+          msgContainer.appendChild(clone);
+        });
+      } else {
+        console.warn("[ADMIN] .message-template.admin not found");
       }
 
       let activeCount = 0, facilitatorCount = 0, frozenCount = 0, pendingCount = 0, rejectedCount = 0, adminCount = 0;
