@@ -1322,10 +1322,10 @@ const ROUTES = {
   "/admin-message-center":    "https://hook.us2.make.com/ax5qvxznklrbrechyt1gdy7r1jner5zp",
 
   // Donations
-  "/donation-checkout":       "https://hook.us2.make.com/qj572hnoeb4ajefrseq1jssu0yc36267",
+  // "/donation-checkout" — migrated to Worker (handleDonationCheckout, Stripe direct)
+  // "/donation-confirm"  — migrated to Worker (/stripe-webhook, Stripe direct)
   "/donation-list-all":       "https://hook.us2.make.com/3kb2m1jg7k23klrycyhl1qq75f3i5ht8",
   "/donation-list-mine":      "https://hook.us2.make.com/zpr4ws33ani1pcb0hq69kfrdhyi3aovx",
-  "/donation-confirm":        "https://hook.us2.make.com/z4lgoli1whwc9pjsahrs1j1evq1bgpl4",
 
   // Events
   "/list-events":             "https://hook.us2.make.com/rwcg9vj3dfjpm8hhf89h4xhc35rhdw51",
@@ -1337,6 +1337,171 @@ const ROUTES = {
   // Home
   "/home-review":             "https://hook.us2.make.com/qd67puk6apqmdmgvsgl8u9yudf725muv",
 };
+
+// ─── Stripe: verify webhook signature (Web Crypto — no Node.js required) ─────
+async function verifyStripeSignature(body, sigHeader, secret) {
+  const v1Sigs = [];
+  let timestamp = null;
+
+  sigHeader.split(",").forEach(part => {
+    const eqIdx = part.indexOf("=");
+    if (eqIdx === -1) return;
+    const key = part.slice(0, eqIdx).trim();
+    const val = part.slice(eqIdx + 1).trim();
+    if (key === "t") timestamp = val;
+    if (key === "v1") v1Sigs.push(val);
+  });
+
+  if (!timestamp || v1Sigs.length === 0) return false;
+
+  // Reject if older than 5 minutes (replay attack prevention)
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - Number(timestamp)) > 300) return false;
+
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sigBuf = await crypto.subtle.sign("HMAC", key, encoder.encode(`${timestamp}.${body}`));
+  const expected = Array.from(new Uint8Array(sigBuf))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  return v1Sigs.some(sig => sig === expected);
+}
+
+// ─── Stripe: create Checkout Session (one-time donation) ─────────────────────
+async function handleDonationCheckout(payload, env, origin) {
+  const cors = corsHeaders(origin, env);
+  const { amount, memberId, email } = payload;
+
+  if (!amount || !memberId || !email) {
+    return new Response(JSON.stringify({ error: "Missing required fields" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json", ...cors },
+    });
+  }
+
+  const params = new URLSearchParams();
+  params.set("mode",                                               "payment");
+  params.set("submit_type",                                        "donate");
+  params.set("line_items[0][price_data][currency]",               "usd");
+  params.set("line_items[0][price_data][unit_amount]",            String(amount));
+  params.set("line_items[0][price_data][product_data][name]",     "Donation — The House of More");
+  params.set("line_items[0][quantity]",                           "1");
+  params.set("success_url",  "https://www.thehouseofmore.com/app/member?donation=confirm");
+  params.set("cancel_url",   "https://www.thehouseofmore.com/app/member?donation=not-confirm");
+  params.set("customer_email",        email);
+  params.set("receipt_email",         email);
+  params.set("metadata[member_id]",   memberId);
+
+  const stripeRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+    method: "POST",
+    headers: {
+      "Authorization":  `Bearer ${env.STRIPE_SECRET_KEY}`,
+      "Content-Type":   "application/x-www-form-urlencoded",
+    },
+    body: params.toString(),
+  });
+
+  if (!stripeRes.ok) {
+    const errText = await stripeRes.text();
+    console.error("[DONATION] Stripe Checkout error:", errText);
+    return new Response(JSON.stringify({ error: "Stripe error" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json", ...cors },
+    });
+  }
+
+  const session = await stripeRes.json();
+  console.log("[DONATION] Checkout session created:", session.id, "member:", memberId);
+  return new Response(JSON.stringify({ url: session.url }), {
+    status: 200,
+    headers: { "Content-Type": "application/json", ...cors },
+  });
+}
+
+// ─── Stripe: webhook receiver (checkout.session.completed → Supabase) ────────
+async function handleStripeWebhook(request, env) {
+  const body = await request.text();
+  const sigHeader = request.headers.get("Stripe-Signature");
+
+  if (!sigHeader) return new Response("Missing signature", { status: 400 });
+
+  const isValid = await verifyStripeSignature(body, sigHeader, env.STRIPE_WEBHOOK_SECRET);
+  if (!isValid) {
+    console.error("[STRIPE WEBHOOK] Invalid signature");
+    return new Response("Invalid signature", { status: 400 });
+  }
+
+  let event;
+  try { event = JSON.parse(body); }
+  catch { return new Response("Invalid JSON", { status: 400 }); }
+
+  // Only handle checkout completion — acknowledge everything else
+  if (event.type !== "checkout.session.completed") {
+    return new Response("OK", { status: 200 });
+  }
+
+  const session        = event.data.object;
+  const memberId       = session.metadata?.member_id;
+  const email          = session.customer_details?.email || session.customer_email;
+  const amountTotal    = session.amount_total; // cents
+  const paymentIntentId = session.payment_intent;
+
+  if (!memberId || !paymentIntentId) {
+    console.error("[STRIPE WEBHOOK] Missing member_id or payment_intent in session:", session.id);
+    return new Response("OK", { status: 200 }); // 200 so Stripe doesn't retry
+  }
+
+  // Fetch payment intent to get receipt URL from the underlying charge
+  let receiptUrl = null;
+  const piRes = await fetch(
+    `https://api.stripe.com/v1/payment_intents/${paymentIntentId}?expand[]=latest_charge`,
+    { headers: { "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}` } }
+  );
+  if (piRes.ok) {
+    const pi = await piRes.json();
+    receiptUrl = pi.latest_charge?.receipt_url || null;
+  } else {
+    console.warn("[STRIPE WEBHOOK] Could not fetch payment intent:", await piRes.text());
+  }
+
+  // Write donation to Supabase
+  const sbHeaders = {
+    "Content-Type":  "application/json",
+    "apikey":        env.SUPABASE_KEY,
+    "Authorization": `Bearer ${env.SUPABASE_KEY}`,
+    "Prefer":        "return=minimal",
+  };
+
+  const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/donations`, {
+    method:  "POST",
+    headers: sbHeaders,
+    body: JSON.stringify({
+      member_id:      memberId,
+      email,
+      amount:         amountTotal,
+      type:           "one-time",
+      status:         "paid",
+      receipt_url:    receiptUrl,
+      transaction_id: paymentIntentId,
+    }),
+  });
+
+  if (!insertRes.ok) {
+    const errText = await insertRes.text();
+    console.error("[STRIPE WEBHOOK] Supabase insert error:", insertRes.status, errText);
+    return new Response("Supabase error", { status: 500 }); // 500 = Stripe will retry
+  }
+
+  console.log("[STRIPE WEBHOOK] Donation saved — member:", memberId, "amount:", amountTotal, "receipt:", receiptUrl);
+  return new Response("OK", { status: 200 });
+}
 
 // ─── CORS helper ─────────────────────────────────────────────────────────────
 function corsHeaders(origin, env) {
@@ -1713,6 +1878,35 @@ export default {
         return new Response(JSON.stringify({ error: err.message }), {
           status: 500, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
         });
+      }
+    }
+
+    // Stripe: create Checkout Session (one-time donation)
+    if (path === "/donation-checkout") {
+      if (!env.STRIPE_SECRET_KEY) return new Response("Server misconfiguration", { status: 500 });
+      let payload;
+      try { payload = await request.json(); } catch { return new Response("Bad request", { status: 400 }); }
+      try {
+        return await handleDonationCheckout(payload, env, origin);
+      } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      }
+    }
+
+    // Stripe: webhook receiver (checkout.session.completed → Supabase)
+    if (path === "/stripe-webhook") {
+      if (!env.STRIPE_SECRET_KEY || !env.STRIPE_WEBHOOK_SECRET) {
+        return new Response("Server misconfiguration", { status: 500 });
+      }
+      try {
+        return await handleStripeWebhook(request, env);
+      } catch (err) {
+        console.error(err);
+        return new Response("Internal error", { status: 500 });
       }
     }
 
