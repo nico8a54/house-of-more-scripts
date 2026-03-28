@@ -1338,6 +1338,151 @@ const ROUTES = {
   "/home-review":             "https://hook.us2.make.com/qd67puk6apqmdmgvsgl8u9yudf725muv",
 };
 
+// ─── Donation receipt email — called by Supabase webhook on donations INSERT ──
+async function handleSendDonationReceipt(request, env) {
+  const secret = request.headers.get("x-webhook-secret");
+  if (!secret || secret !== env.SUPABASE_WEBHOOK_SECRET) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  let payload;
+  try { payload = await request.json(); }
+  catch { return new Response("Bad request", { status: 400 }); }
+
+  const record = payload?.record;
+  if (!record) {
+    return new Response(JSON.stringify({ ok: true, skipped: "no record" }), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const { member_id, email, amount, receipt_url } = record;
+
+  if (!email) {
+    console.error("[DONATION EMAIL] No email on record", record);
+    return new Response(JSON.stringify({ ok: true, skipped: "no email" }), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const amountFormatted = "$" + ((Number(amount) || 0) / 100).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  const receiptButton = receipt_url
+    ? `<tr>
+          <td align="center" style="padding:0 50px;">
+            <a href="${receipt_url}"
+               style="display:inline-block; background-color:#946a49; color:#ffffff; text-decoration:none; font-family:Arial, sans-serif; font-size:14px; padding:14px 28px; border-radius:4px;">
+               Download Receipt →
+            </a>
+          </td>
+        </tr>`
+    : "";
+
+  const html = `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f2f2f2; padding:40px 0;">
+  <tr>
+    <td align="center">
+      <table width="500" cellpadding="0" cellspacing="0" border="0" align="center"
+        style="background-color:#ffffff; border-radius:10px; overflow:hidden;">
+        <tr>
+          <td align="center" style="background-color:#2b1f14; padding:24px 40px;">
+            <div style="font-family:Georgia, serif; font-size:22px; color:#ffffff; letter-spacing:1px;">
+              THE HOUSE OF MORE
+            </div>
+            <a href="https://thehouseofmore.com"
+               style="color:#946a49 !important; text-decoration:none; font-family:Arial, sans-serif; font-size:12px;">
+               thehouseofmore.com
+            </a>
+          </td>
+        </tr>
+        <tr><td style="height:36px;"></td></tr>
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; letter-spacing:2px; color:#8c7a64;">
+              DONATION RECEIVED
+            </div>
+          </td>
+        </tr>
+        <tr><td style="height:14px;"></td></tr>
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:26px; color:#2b2b2b; line-height:34px;">
+              Thank you for your donation
+            </div>
+          </td>
+        </tr>
+        <tr><td style="height:20px;"></td></tr>
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#5c5c5c; line-height:22px;">
+              We are deeply grateful for your contribution of <strong>${amountFormatted}</strong>. Your support helps us continue creating meaningful experiences and nurturing this community.
+              <br><br>
+              You can download your receipt using the button below.
+            </div>
+          </td>
+        </tr>
+        <tr><td style="height:30px;"></td></tr>
+        ${receiptButton}
+        <tr><td style="height:36px;"></td></tr>
+        <tr>
+          <td style="padding:0 50px;">
+            <hr style="border:none; border-top:1px solid #e5ded4;">
+          </td>
+        </tr>
+        <tr><td style="height:20px;"></td></tr>
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#2b2b2b; line-height:22px;">
+              If you have any questions about your donation, simply reply to this email and our team will be happy to assist you.
+              <br><br>
+              <em>With gratitude,</em><br>
+              <strong>The House of More Team</strong>
+            </div>
+          </td>
+        </tr>
+        <tr><td style="height:48px;"></td></tr>
+        <tr>
+          <td align="center" style="background-color:#f7f3ed; padding:18px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; color:#8c7a64;">
+              © House of More 2026
+            </div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>`;
+
+  const emailRes = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from:    "onboarding@resend.dev",
+      to:      email,
+      subject: `Your donation receipt — ${amountFormatted}`,
+      html,
+    }),
+  });
+
+  if (!emailRes.ok) {
+    const errText = await emailRes.text();
+    console.error("[DONATION EMAIL] Resend error:", errText);
+    return new Response(JSON.stringify({ error: errText }), {
+      status: 500, headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  console.log("[DONATION EMAIL] Receipt sent to:", email, "amount:", amountFormatted, "member:", member_id);
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200, headers: { "Content-Type": "application/json" },
+  });
+}
+
 // ─── Stripe: verify webhook signature (Web Crypto — no Node.js required) ─────
 async function verifyStripeSignature(body, sigHeader, secret) {
   const v1Sigs = [];
@@ -1877,6 +2022,21 @@ export default {
         console.error(err);
         return new Response(JSON.stringify({ error: err.message }), {
           status: 500, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      }
+    }
+
+    // Donation receipt email — called by Supabase webhook on donations INSERT
+    if (path === "/send-donation-receipt") {
+      if (!env.RESEND_API_KEY || !env.SUPABASE_WEBHOOK_SECRET) {
+        return new Response("Server misconfiguration", { status: 500 });
+      }
+      try {
+        return await handleSendDonationReceipt(request, env);
+      } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500, headers: { "Content-Type": "application/json" },
         });
       }
     }
