@@ -33,6 +33,9 @@ Secrets set in Worker:
 - `SUPABASE_KEY`
 - `MEMBERSTACK_KEY`
 - `SUPABASE_WEBHOOK_SECRET`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `RESEND_API_KEY`
 - `ALLOWED_ORIGIN`
 - `WEBFLOW_SECRET_CREATED`
 - `WEBFLOW_SECRET_CHANGED`
@@ -46,22 +49,30 @@ CORS allowed origins: `https://www.thehouseofmore.com`, `https://thehouseofmore.
 
 ### Supabase routes (direct — no Make.com)
 - `POST /questionnaire-supabase` — writes to `member_profiles` + `member_questionnaire`
-- `POST /member-profile` — fetches profile, questionnaire, rsvps, donations from Supabase + plan connections from Memberstack API in parallel. Returns one merged flat object. Always returns full questionnaire shape (null keys) and skeleton rsvp/donation objects when arrays are empty.
+- `POST /member-profile` — fetches profile, questionnaire, rsvps, donations, unread message count from Supabase + plan connections from Memberstack API in parallel. Returns one merged flat object. Always returns full questionnaire shape (null keys) and skeleton rsvp/donation objects when arrays are empty. `unread_messages_count` = total `admin_messages` count − `member_messages` rows where `read=true` for this member (handles members with no message interaction). If facilitator: also returns `facilitator_events` (id, event_slug, event_name, event_capacity, event_status, event_current_capacity) and `facilitator_rsvps` (full rsvp rows with embedded member_profiles).
 - `POST /member-profile-update-supabase` — updates `member_profiles` (PATCH) + `member_questionnaire` (UPSERT) from profile form payload. Splits fields using `PROFILE_FIELDS` and `QUESTIONNAIRE_FIELDS` constants.
 - `POST /memberstack-add-plan` — called by Supabase DB webhook on `member_profiles` INSERT → adds `pln_members-5kbh0gjx` to member in Memberstack
 - `POST /event-data` — fetches event from `events_with_capacity` view by `event_slug` + member plan info from Memberstack in parallel. RSVPs (with embedded `member_profiles`: first_name, last_name, email, member_id) only fetched and returned if member has admin or facilitator plan. Returns `{ event, rsvps, current_capacity, member }`.
 - `POST /member-rsvp-supabase` — handles RSVP booking, cancel, waiting-list for members. Writes `member` boolean to `event_rsvps`. Returns `{ message, success, alreadyBooked? }`. Guards: already booked (booked/waitlist) → `success: false, alreadyBooked: true`; prior cancellation → `success: false` (no re-booking allowed, must email info@thehouseofmore.com); event not found → `success: false`.
 - `POST /memberstack-plan-sync` — Memberstack webhook receiver (`member.plan.added` / `member.plan.removed`). Verifies `x-memberstack-signature` (HMAC-SHA256, secret: `MEMBERSTACK_WEBHOOK_SECRET`). Resolves `application_status` + `subscription_plan` from full `planConnections` using priority: frozen → admin → paid tier → approved → facilitator-only → rejected → pending. PATCHes `member_profiles`. Skips unknown events with 200.
 - `POST /admin-approve-member` — **Migrated from Make.com.** Receives `{ member_id, plan_id, action }`. Calls Memberstack `/add-plan`, then PATCHes `member_profiles.application_status` + `subscription_plan` in Supabase. Actions: `approve` → `approved`, `reject` → `rejected`, `freeze` → `frozen`, `unfreeze` → `approved`. Requires `MEMBERSTACK_KEY` + `SUPABASE_KEY`.
+- `POST /admin-create-message` — Creates a new `admin_messages` record. Receives `{ member_id, subject, message, recipient }`. Verifies caller has admin plan via Memberstack. Inserts into `admin_messages`, returns `{ success: true, message: <inserted row> }`. Uses `Prefer: return=representation` to get the created record back.
+- `POST /member-messages-supabase` — Fetches all `admin_messages` (ordered `date.desc`) + `member_messages` for this member in parallel. Merges per-message `read`/`erased` state (defaults false if no row exists). Returns `[{ id, subject, message, recipient, date, read, erased }]`.
+- `POST /member-message-action-supabase` — Receives `{ member_id, message_id, action }` where action is `"read"` or `"erase"`. GETs existing `member_messages` row; PATCHes if found, POSTs new row if not. Sets `read: true` or `erased: true`.
 - `POST /facilitator-checkin-supabase` — QR check-in for facilitators. Payload: `{ qr_text, event_slug }`. `qr_text` is the `event_rsvps.id` UUID encoded in the member's confirmation email QR. Looks up RSVP by UUID, validates `events.event_slug` matches payload (rejects cross-event QRs), guards already-checked and canceled states, patches `booking_status` → `"checked"`, fetches `member_profiles` for display name/email. Returns object `{ member_name, id, email, rsvp_record_id, booking_status: "checked" }` on success, or a plain string message on rejection.
 - `POST /send-rsvp-email` — called by Supabase DB webhook on `event_rsvps` INSERT (booking confirmation) and UPDATE (cancellation). Fetches event + member from Supabase, sends HTML email via Resend. Skips non-members and non-booking statuses. `booking_status` values: `"booked"` (confirmed), `"waitlist"`, `"canceled"` — worker writes these, NOT `"booking"`/`"waiting-list"` (those are frontend-only terms).
+- `POST /donation-checkout` — **Migrated from Make.com.** Creates Stripe Checkout Session (`mode: payment`, `submit_type: donate`). Payload: `{ amount (cents), memberId, email }`. Sets `customer_email`, `metadata[member_id]`. Returns `{ url }` → member is redirected to Stripe hosted checkout. Success redirects to `?donation=confirm`, cancel to `?donation=not-confirm`.
+- `POST /stripe-webhook` — receives `checkout.session.completed` from Stripe. Verifies `Stripe-Signature` header (HMAC-SHA256 via Web Crypto, 5-min replay window). Fetches payment intent with `?expand[]=latest_charge` to get `receipt_url`. Inserts into `donations`: `{ member_id, amount, type: "one-time", receipt_url, transaction_id }`. Returns 500 on Supabase failure so Stripe retries.
+- `POST /send-donation-receipt` — called by Supabase DB webhook on `donations` INSERT. Verifies `x-webhook-secret` header. Looks up `email` + `first_name` from `member_profiles` via `member_id`. Sends branded HTML receipt email via Resend. `from: onboarding@resend.dev` (pending domain verification).
 - ~~`POST /webflow-event-sync`~~ — removed from Worker, replaced by Supabase Edge Function below
 
 ### Make.com routes (legacy — being phased out)
 - `/member-profile-update`, `/member-list-events`, `/member-rsvp`, `/member-messages-load`, `/member-message-action`
 - `/facilitator-list-events`, `/facilitator-close-event` (~~`/facilitator-checkin`~~ migrated to Supabase)
 - `/admin-list-members`, `/admin-get-member`, `/admin-approve-member`, `/admin-list-rsvp`, `/admin-list-event`, `/admin-messages`, `/admin-message-center`
-- `/donation-checkout`, `/donation-list-all`, `/donation-list-mine`, `/donation-confirm`
+- ~~`/donation-checkout`~~ migrated to Worker (Stripe direct)
+- ~~`/donation-confirm`~~ migrated to Worker (`/stripe-webhook`)
+- `/donation-list-all`, `/donation-list-mine`
 - `/list-events`, `/closed-event`, `/questionnaire-create-member`, `/home-review`
 
 ---
@@ -73,8 +84,10 @@ URL: `https://wioktwzioxzgmntgxsme.supabase.co`
 - `member_profiles` — id (uuid), member_id, email, first_name, last_name, phone, birthday, gender, marital_status, application_status, subscription_plan (text, nullable — paid plan name e.g. "sustainer"; null for free members), date_of_request, approved_date, location, created_at, updated_at
 - `member_questionnaire` — id, member_id, where_are_you_on_your_path, how_can_we_support_you, how_did_you_hear_about_the_house_of_more, have_you_been_with_the_house_of_more, how_many_events_have_you_attended_at_the_hom, how_many_events_per_month_can_you_participate, what_draws_you_to_the_house_of_more, community_and_contribution, is_there_anything_else, do_you_feel_aligned_with_the_house_of_more, i_commit_to_respecting_the_house_of_more (bool), skills_to_share
 - `event_rsvps` — id (uuid), member_id, event_id (text FK → events.id), booking_status, member (bool, default true — false for non-member bookings), rating, review, booked_at, cancel_at, created_at, updated_at
-- `donations` — id, member_id, email, amount (int, cents), type, status, receipt_url, transaction_id, recurrent_status
+- `donations` — id (uuid), member_id (text, FK → member_profiles.member_id), amount (int, cents), type (text — "one-time" | "subscription"), receipt_url (text), transaction_id (text, unique — Stripe payment intent ID), recurrent_status (text, nullable), created_at (timestamptz). Note: no `email` or `status` columns — email is looked up from `member_profiles` when needed.
 - `messages` — id, message_record_id, member_id, subject, body, read (bool), erased (bool), sent_by, sent_at
+- `admin_messages` — id (uuid PK), subject (text), message (text), recipient (text — "members" | "facilitators" | "community"), date (timestamptz, default now()), created_at (timestamptz, default now())
+- `member_messages` — id (uuid PK), admin_message_id (uuid FK → admin_messages.id, cascade delete), member_id (text — Memberstack ID), read (bool, default false), erased (bool, default false), created_at (timestamptz, default now())
 - `events` — id (text PK = Webflow item ID), event_name, event_date, event_status, event_capacity (int), facilitator_name, facilitator_email, event_link, event_slug, event_location, event_category (text), event_gender (text), event_duration (numeric — decimal hours e.g. 0.5, 1, 2), event_video_link, created_at, updated_at
 - `events_with_capacity` (view) — all events columns + event_current_capacity, booked_count, canceled_count, checked_count, waitlist_count (joins event_rsvps on event_rsvps.event_id = events.id). Formula: `event_current_capacity = event_capacity - booked_count - checked_count`
 
@@ -110,10 +123,9 @@ URL: `https://wioktwzioxzgmntgxsme.supabase.co`
   - Webflow collection: Events 2026s (`69768dc21072a12ac28003ee`)
   - **Verified working end-to-end March 26 2026**
 
-### Database Webhook
-- Table: `member_profiles` — Event: INSERT
-- URL: `https://houseofmore.nico-97c.workers.dev/memberstack-add-plan`
-- Header: `x-webhook-secret: vxAc8CnaJnUA--JVA`
+### Database Webhooks
+- Table: `member_profiles` — Event: INSERT → `https://houseofmore.nico-97c.workers.dev/memberstack-add-plan` — Header: `x-webhook-secret: vxAc8CnaJnUA--JVA`
+- Table: `donations` — Event: INSERT → `https://houseofmore.nico-97c.workers.dev/send-donation-receipt` — Header: `x-webhook-secret: vxAc8CnaJnUA--JVA` (`SUPABASE_WEBHOOK_SECRET`)
 
 ### Questionnaire flow (working)
 Webflow form → `POST /questionnaire-supabase` → Worker writes to `member_profiles` + `member_questionnaire` → Supabase webhook fires → Worker adds pending plan in Memberstack
@@ -186,6 +198,7 @@ Note: `rsvps` and `donations` return a skeleton object with null values when emp
 ### Section 6 — Member profile fetch + render + edit UI (Supabase)
 - Reads `[data-ms-member="id"]` directly for member_id — Memberstack populates it synchronously at DOM load, no polling needed. Element must be present in the DOM (can be hidden).
 - `POST /member-profile` → full merged object
+- Module-level `let memberIsFacilitator = false` — set after profile fetch, shared with Section 8 (messages)
 - `renderFields(data)` — flattens `questionnaire` into top-level, then:
   - Checkboxes: `input[type="checkbox"][name="key"]` → checks via `data-option` + `normalizeOption`
   - Radios: `input[type="radio"][name="key"]` → matched by value
@@ -197,6 +210,10 @@ Note: `rsvps` and `donations` return a skeleton object with null values when emp
 - Cancel: re-renders from cached `state.data`, restores view mode
 - `updateFacilitatorMenu` — shows `.menu-wrapper.facilitator` if plan `planId === "pln_facilitator-9o1kw0j5o"`
 - `updateCancelPlan` — shows `.cancel-plan` if active pay plan exists
+- **Unread alert**: removes `.hide` from `.app-button.messages .alert` if `data.unread_messages_count > 0` — set on page load from profile response
+- **Membership tier select** (`#membership-tier`): if `data.subscription_plan` exists, finds matching option by `value.startsWith(plan)` and selects it; otherwise selects first option (`value=""`)
+- **Paid plan UI**: if `subscription_plan` exists → `#recurrent-donation` text set to "upgrade your plan", removes `.hide` from `#cancel-subscription` and `.current-plan` elements
+- **Facilitator event cards**: clones `.event-template` once per event in `data.facilitator_events`, hides original, sets href to `/events-2026/{event_slug}`, populates `[data-field]` fields (event_name, event_slug, event_capacity, event_status, booked, checked, canceled, no-show, event_current_capacity) — RSVPs grouped from `data.facilitator_rsvps` by `event_id`
 - `filterMyEvents(data)` — filters `.event-card-wrapper.my-event` cards by RSVP data:
   - Shows only booked and canceled RSVPs; hides non-RSVP cards
   - Matches cards by slug extracted from `.button.event-card` href vs `rsvp.event_slug`
@@ -209,6 +226,29 @@ Note: `rsvps` and `donations` return a skeleton object with null values when emp
 - Collects all inputs/selects/textareas by `name`, radios (checked), checkboxes (grouped + joined with ` / `)
 - `POST /member-profile-update-supabase`
 - On 200: sets `forceClickProfile` sessionStorage, reloads page
+
+### Section 9 — One-time donation checkout
+- `#on-time-donation` click → reads `#donation-amount`, gets `memberId` + `email` from Memberstack
+- `POST /donation-checkout` with `{ amount (cents), memberId, email }` → redirects to Stripe Checkout URL
+
+### Section 10 — Donation history render
+- Called as `renderDonations(data.donations || [])` from the Section 6 profile fetch
+- Clones `.donation-template` (marks original `.hide`) for each donation record
+- Populates via `[data-field]` selectors: `amount` (formatted USD), `created_at` (formatted date), `receipt_url` (sets `href` on `<a>` element; hides element if no URL)
+- Updates `.impact-value` with total of all donations (cents → USD)
+
+### Section 8 — Messages (Supabase)
+- **Lazy load**: fetches on first `.app-button.messages` tab click, caches result — subsequent clicks use cache
+- `POST /member-messages-supabase` → `[{ id, subject, message, recipient, date, read, erased }]`
+- Clones `.message-template.admin` per message, hides original
+  - Read messages: adds `.read`, removes `.new`; unread: `.new` stays (default on template)
+  - Filters out erased messages; filters `recipient === "facilitators"` if `memberIsFacilitator` is false
+  - Empty state: shows `.message-empty` if no visible messages
+  - Auto-selects first clone, renders to reading panel, marks read
+- Click row → `renderMessage(row)` (copies `[data-field]` innerHTML to matching `#id` in `.message-view`) + `POST /member-message-action-supabase` with `action: "read"`
+- Erase → removes row from DOM + `POST /member-message-action-supabase` with `action: "erase"` + advances to next row or shows list
+- `updateAlert()` — syncs `.app-button.messages .alert` visibility after each read/erase action
+- Mobile: `showMessageView()` / `showMessageList()` toggle `.hide-mobile-landscape` on `.message-view` / `#messages-list`
 
 ---
 
@@ -269,10 +309,33 @@ Base copy of `admin-compiled.js` — migration in progress. Deploy URL pattern:
 | 2 | Filter by status (Approved/Rejected/Frozen) | ✅ no external calls |
 | 3 | Add `?admin=true` to event links | ✅ no external calls |
 | 4 | Admin donation history (logged-in admin) | ⏳ Make.com `/donation-list-mine` |
-| 5 | Message Center | ⏳ Make.com `/admin-message-center` |
-| 6 | Event Manager button | ⏳ Make.com `/admin-list-rsvp` + `/admin-messages` |
+| 5 | Message Center | ✅ Supabase via `/admin-data` + `/admin-create-message` |
+| 6 | Event Manager — template clone render | ✅ Supabase via `/admin-data` |
 | 7 | Main render: member list + donations | ⏳ Make.com `/admin-list-members`, `/admin-get-member`, `/admin-approve-member`, `/donation-list-all` |
 | 8 | Admin onboarding walkthrough | ✅ no external calls |
+
+### Section 5 — Message Center (Supabase)
+- Messages fetched from `admin_messages` via `/admin-data` on page load, returned as `adminMessages` array ordered `date.desc`
+- On load: clones `.message-template.admin` for each message, hides original, auto-selects first clone
+- Empty state: shows `.message-empty` element if `adminMessages.length === 0`
+- Click handler on `.message-template.admin` calls `renderMessage(row)` — copies each `[data-field]` innerHTML into matching `#id` element in `.message-view` panel
+- `renderMessage` hoisted to module scope (shared with auto-select after clone render)
+- **Send new message**: reads fields from `#message-form` via `FormData` (field names: `subject`, `recipient`, `message`), falls back to `#new-subject` / `#new-recipient` / `#new-message-text`; POSTs to `/admin-create-message`; on success clones + prepends new message, marks it active, calls `renderMessage`, resets form, returns to reading view — no page reload
+
+### Section 6 — Event Manager (Supabase)
+- Data comes from `/admin-data` POST (same call as Section 7, fired on page load)
+- `/admin-data` returns `{ members, donations, rsvps, events }` — `events` and `rsvps` stored in shared `adminRsvps` / `adminEvents` module-level vars
+- **Render approach**: clones `.event-template` (a link block) once per Supabase event, hides the original
+- Each clone href set to `/events-2026/[event_slug]`
+- RSVPs counted per `event_id` by status: `booked`, `checked`, `canceled`, `no-show`
+- Fields populated via `[data-field="..."]` selectors on the clone:
+  - `event_name` — `ev.event_name`
+  - `event_slug` — `ev.event_slug`
+  - `event_capacity` — `ev.event_capacity`
+  - `event_status` — `ev.event_status`
+  - `booked`, `checked`, `canceled`, `no-show` — counts from `rsvps`
+- Falls back to `"--"` for any null/missing value
+- Event manager button click (Section 6 legacy) still exists but is no longer auto-triggered on load
 
 ### Planned architecture (Supabase migration)
 **Single `/admin-dashboard` worker route** — called once on page load, parallel fetches:
@@ -284,7 +347,7 @@ Base copy of `admin-compiled.js` — migration in progress. Deploy URL pattern:
 - Supabase `member_profiles` + `member_questionnaire` by `member_id`
 - Returns merged flat object for modal population
 
-**Admin Event Manager columns** — to match Facilitator Events view: Event Name, Date, Capacity, Checked, Booked, Canceled, No-show, Spots Available, Status, View
+**Admin Event Manager columns** — Event Name, Slug, Capacity, Checked, Booked, Canceled, No-show, Status, View (link)
 
 **Actions (approve/reject/freeze/restore)** — stay as-is via existing `/admin-approve-member` Make.com route
 
@@ -352,3 +415,5 @@ Transactional email via Resend is built and tested. Remaining steps before going
 - [ ] Test cancellation email end-to-end
 - Note: Supabase webhook `rsvp-email-confirmation` is configured — INSERT + UPDATE on `event_rsvps`, header `x-webhook-secret`
 - [ ] Handle non-member booking email (currently skipped — Make.com flow still active)
+- [ ] Update `from` address in `handleSendDonationReceipt` from `onboarding@resend.dev` to verified sender once domain is set up
+- [x] Test donation receipt email end-to-end (Stripe checkout → Supabase INSERT → Resend delivers) — **confirmed working March 28 2026**
