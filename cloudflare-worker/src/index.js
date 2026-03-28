@@ -1356,10 +1356,25 @@ async function handleSendDonationReceipt(request, env) {
     });
   }
 
-  const { member_id, email, amount, receipt_url } = record;
+  const { member_id, amount, receipt_url } = record;
+
+  if (!member_id) {
+    console.error("[DONATION EMAIL] No member_id on record", record);
+    return new Response(JSON.stringify({ ok: true, skipped: "no member_id" }), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Look up email from member_profiles
+  const profileRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/member_profiles?member_id=eq.${encodeURIComponent(member_id)}&select=email&limit=1`,
+    { headers: { "apikey": env.SUPABASE_KEY, "Authorization": `Bearer ${env.SUPABASE_KEY}` } }
+  );
+  const profiles = profileRes.ok ? await profileRes.json() : [];
+  const email = profiles[0]?.email;
 
   if (!email) {
-    console.error("[DONATION EMAIL] No email on record", record);
+    console.error("[DONATION EMAIL] No email found for member", member_id);
     return new Response(JSON.stringify({ ok: true, skipped: "no email" }), {
       status: 200, headers: { "Content-Type": "application/json" },
     });
