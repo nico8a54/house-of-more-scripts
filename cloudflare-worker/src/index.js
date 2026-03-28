@@ -1153,25 +1153,27 @@ async function handleAdminData(request, env, origin) {
     "Authorization": `Bearer ${env.SUPABASE_KEY}`,
   };
 
-  // Fetch members, donations, events, and RSVPs from Supabase in parallel
-  const [membersRes, donationsRes, eventsRes, rsvpsRes] = await Promise.all([
+  // Fetch members, donations, events, RSVPs, and admin messages from Supabase in parallel
+  const [membersRes, donationsRes, eventsRes, rsvpsRes, adminMessagesRes] = await Promise.all([
     fetch(`${SUPABASE_URL}/rest/v1/member_profiles?select=*,member_questionnaire(*)&order=created_at.asc`, { headers: sbHeaders }),
     fetch(`${SUPABASE_URL}/rest/v1/donations?select=*&order=created_at.desc`,      { headers: sbHeaders }),
     fetch(`${SUPABASE_URL}/rest/v1/events?select=*&order=event_date.asc`,          { headers: sbHeaders }),
     fetch(`${SUPABASE_URL}/rest/v1/event_rsvps?select=*,member_profiles(member_id,first_name,last_name)&order=booked_at.asc`, { headers: sbHeaders }),
+    fetch(`${SUPABASE_URL}/rest/v1/admin_messages?select=*&order=date.desc`,       { headers: sbHeaders }),
   ]);
 
-  if (!membersRes.ok)   throw new Error(`Supabase member_profiles error (${membersRes.status})`);
-  if (!donationsRes.ok) throw new Error(`Supabase donations error (${donationsRes.status})`);
-  if (!eventsRes.ok)    throw new Error(`Supabase events error (${eventsRes.status})`);
-  if (!rsvpsRes.ok)     throw new Error(`Supabase event_rsvps error (${rsvpsRes.status})`);
+  if (!membersRes.ok)       throw new Error(`Supabase member_profiles error (${membersRes.status})`);
+  if (!donationsRes.ok)     throw new Error(`Supabase donations error (${donationsRes.status})`);
+  if (!eventsRes.ok)        throw new Error(`Supabase events error (${eventsRes.status})`);
+  if (!rsvpsRes.ok)         throw new Error(`Supabase event_rsvps error (${rsvpsRes.status})`);
+  if (!adminMessagesRes.ok) throw new Error(`Supabase admin_messages error (${adminMessagesRes.status})`);
 
-  const [members, donations, events, rsvps] = await Promise.all([
-    membersRes.json(), donationsRes.json(), eventsRes.json(), rsvpsRes.json(),
+  const [members, donations, events, rsvps, adminMessages] = await Promise.all([
+    membersRes.json(), donationsRes.json(), eventsRes.json(), rsvpsRes.json(), adminMessagesRes.json(),
   ]);
 
-  console.log(`[ADMIN DATA] ${members.length} members, ${donations.length} donations, ${events.length} events, ${rsvps.length} rsvps`);
-  return new Response(JSON.stringify({ members, donations, events, rsvps }), {
+  console.log(`[ADMIN DATA] ${members.length} members, ${donations.length} donations, ${events.length} events, ${rsvps.length} rsvps, ${adminMessages.length} admin messages`);
+  return new Response(JSON.stringify({ members, donations, events, rsvps, adminMessages }), {
     status: 200,
     headers: { "Content-Type": "application/json", ...cors },
   });
