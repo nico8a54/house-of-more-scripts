@@ -212,20 +212,11 @@
     if (messageForm) messageForm.classList.add("hide");
     if (sendMessageWrapper) sendMessageWrapper.classList.add("hide");
 
-    function renderMessage(row) {
-      if (!row) return;
-      row.querySelectorAll("[data-field]").forEach(field => {
-        const key = field.getAttribute("data-field");
-        if (!key) return;
-        const target = document.getElementById(key);
-        if (target) target.innerHTML = field.innerHTML;
-      });
-    }
 
     document.addEventListener("click", (e) => {
-      const row = e.target.closest(".message-row");
-      if (!row) return;
-      document.querySelectorAll(".message-row").forEach(r => r.classList.remove("active"));
+      const row = e.target.closest(".message-template.admin");
+      if (!row || row.classList.contains("hide")) return;
+      document.querySelectorAll(".message-template.admin").forEach(r => r.classList.remove("active"));
       row.classList.add("active");
       renderMessage(row);
       if (messageView) messageView.classList.remove("hide-mobile-landscape");
@@ -324,12 +315,17 @@
       });
     }
 
-    const firstMessage = document.querySelector(".message-row");
-    if (firstMessage) {
-      firstMessage.classList.add("active");
-      renderMessage(firstMessage);
-    }
   });
+
+  function renderMessage(row) {
+    if (!row) return;
+    row.querySelectorAll("[data-field]").forEach(field => {
+      const key = field.getAttribute("data-field");
+      if (!key) return;
+      const target = document.getElementById(key);
+      if (target) target.innerHTML = field.innerHTML;
+    });
+  }
 
   // Shared state: populated by load handler, consumed by event manager button
   let adminRsvps = [];
@@ -598,6 +594,8 @@
           set("date", msg.date);
           msgContainer.appendChild(clone);
         });
+        const firstClone = msgContainer.querySelector(".message-template.admin:not(.hide)");
+        if (firstClone) { firstClone.classList.add("active"); renderMessage(firstClone); }
       } else {
         console.warn("[ADMIN] .message-template.admin not found");
       }
