@@ -582,6 +582,9 @@
       const msgContainer = msgTemplate?.parentElement;
       if (msgTemplate && msgContainer) {
         msgTemplate.classList.add("hide");
+        if (adminMessages.length === 0) {
+          msgContainer.querySelector(".message-empty")?.classList.remove("hide");
+        }
         adminMessages.forEach(msg => {
           const clone = msgTemplate.cloneNode(true);
           clone.classList.remove("hide");
