@@ -278,6 +278,7 @@
             body: JSON.stringify({ member_id: memberId, subject, message, recipient }),
           });
           const data = await res.json();
+          console.log("[ADMIN] Create message response:", res.status, data);
           if (!res.ok || !data.success) throw new Error(data.error || "Failed to create message");
           console.log("[ADMIN] Message created:", data.message);
           location.reload();
