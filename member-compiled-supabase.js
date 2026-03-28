@@ -630,6 +630,7 @@ function renderFields(data) {
     updateCancelPlan(data);
     filterMyEvents(data);
     renderFields(data);
+    renderDonations(data.donations || []);
     applyViewModeLocking();
     syncFilledUIState();
     bindButtons();
@@ -893,5 +894,69 @@ function renderFields(data) {
       }
     });
   });
+
+  /*=========================================================
+    SECTION 10 — DONATION HISTORY RENDER
+    src: donation-history.js
+    Data: data.donations from /member-profile
+  =========================================================*/
+  function renderDonations(donations) {
+    const template  = document.querySelector(".donation-template:not([data-donation-clone='true'])");
+    if (!template) return;
+    const container = template.parentElement;
+
+    // Remove any previously rendered clones
+    container.querySelectorAll("[data-donation-clone='true']").forEach(el => el.remove());
+
+    template.classList.add("hide");
+
+    let totalCents = 0;
+
+    donations.forEach(record => {
+      const clone = template.cloneNode(true);
+      clone.setAttribute("data-donation-clone", "true");
+      clone.classList.remove("hide");
+
+      const amountCents = Number(record.amount) || 0;
+      totalCents += amountCents;
+      const amountFormatted = "$" + (amountCents / 100).toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+
+      const set = (field, val) => {
+        const el = clone.querySelector(`[data-field="${field}"]`);
+        if (!el) return;
+        if (el.tagName === "A") el.href = val || "#";
+        else el.textContent = val ?? "--";
+      };
+
+      set("amount",     amountFormatted);
+      set("created_at", record.created_at
+        ? new Date(record.created_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+        : "--");
+
+      // receipt_url — hide the element if no URL
+      const receiptEl = clone.querySelector('[data-field="receipt_url"]');
+      if (receiptEl) {
+        if (record.receipt_url) {
+          receiptEl.href = record.receipt_url;
+        } else {
+          receiptEl.classList.add("hide");
+        }
+      }
+
+      container.appendChild(clone);
+    });
+
+    // Update total impact display
+    const impactEl = document.querySelector(".impact-value");
+    if (impactEl) {
+      impactEl.textContent = "$" + (totalCents / 100).toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    }
+  }
 
 })();
