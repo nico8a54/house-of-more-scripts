@@ -1367,11 +1367,12 @@ async function handleSendDonationReceipt(request, env) {
 
   // Look up email from member_profiles
   const profileRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/member_profiles?member_id=eq.${encodeURIComponent(member_id)}&select=email&limit=1`,
+    `${SUPABASE_URL}/rest/v1/member_profiles?member_id=eq.${encodeURIComponent(member_id)}&select=email,first_name&limit=1`,
     { headers: { "apikey": env.SUPABASE_KEY, "Authorization": `Bearer ${env.SUPABASE_KEY}` } }
   );
   const profiles = profileRes.ok ? await profileRes.json() : [];
-  const email = profiles[0]?.email;
+  const email      = profiles[0]?.email;
+  const firstName  = profiles[0]?.first_name || "";
 
   if (!email) {
     console.error("[DONATION EMAIL] No email found for member", member_id);
@@ -1424,7 +1425,7 @@ async function handleSendDonationReceipt(request, env) {
         <tr>
           <td align="left" style="padding:0 50px;">
             <div style="font-family:Georgia, serif; font-size:26px; color:#2b2b2b; line-height:34px;">
-              Thank you for your donation
+              Thank you${firstName ? `, ${firstName}` : ""} for your donation
             </div>
           </td>
         </tr>
