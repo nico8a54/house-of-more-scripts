@@ -259,9 +259,12 @@
 
     if (sendBtn) {
       sendBtn.addEventListener("click", async () => {
-        const subject = newSubject?.value.trim() || "";
-        const recipient = newRecipient?.value.trim() || "";
-        const message = newMessageText?.value.trim() || "";
+        const form = document.getElementById("message-form");
+        const fd = form ? new FormData(form) : null;
+        const subject = (fd?.get("subject") || newSubject?.value || "").trim();
+        const recipient = (fd?.get("recipient") || newRecipient?.value || "").trim();
+        const message = (fd?.get("message") || newMessageText?.value || "").trim();
+        console.log("[ADMIN] Send payload:", { subject, recipient, message });
         if (!subject || !message || !recipient) {
           alert("Please fill subject, recipient, and message");
           return;
