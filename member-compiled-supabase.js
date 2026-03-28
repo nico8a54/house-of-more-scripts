@@ -450,18 +450,6 @@
       if (hasFacilitator) show(ui.facilitatorMenu);
     }
 
-    function filterFacilitatorEvents(data) {
-      const isFacilitator = Array.isArray(data?.plan_name) &&
-        data.plan_name.some(p => p?.planId === "pln_facilitator-9o1kw0j5o");
-      const memberEmail = (data?.email || "").trim().toLowerCase();
-      document.querySelectorAll(".facilitator-event").forEach(card => {
-        if (!isFacilitator) { card.classList.add("hide"); return; }
-        const emailEl = card.querySelector(".facilitator-email");
-        const facilitatorEmail = (emailEl?.textContent || "").trim().toLowerCase();
-        card.classList.toggle("hide", facilitatorEmail !== memberEmail);
-      });
-    }
-
     function updateCancelPlan(data) {
       const cancelPlanEl = document.querySelector(".cancel-plan");
       if (!cancelPlanEl) return;
@@ -576,51 +564,40 @@ function renderFields(data) {
 
     const isFacilitator = Array.isArray(data?.plan_name) &&
       data.plan_name.some(p => p?.planId === "pln_facilitator-9o1kw0j5o");
-    if (!isFacilitator) {
-      console.log("[FACILITATOR] Not a facilitator — skipping facilitator RSVPs.");
-    } else if (!data.facilitator_rsvps || data.facilitator_rsvps.length === 0) {
-      console.log("[FACILITATOR] Facilitator has no RSVPs yet.");
-    } else {
-      console.log("[FACILITATOR] RSVPs for facilitator's events:", data.facilitator_rsvps);
-
-      console.log("[FACILITATOR] facilitator_events:", data.facilitator_events);
-
-      // Build slug → event map
-      const slugToEvent = {};
-      (data.facilitator_events || []).forEach(e => {
-        if (e.event_slug) slugToEvent[e.event_slug] = e;
-      });
-
-      // Group RSVPs by event_id
-      const rsvpsByEvent = {};
-      for (const rsvp of data.facilitator_rsvps) {
-        if (!rsvpsByEvent[rsvp.event_id]) rsvpsByEvent[rsvp.event_id] = [];
-        rsvpsByEvent[rsvp.event_id].push(rsvp);
-      }
-
-      // Render counts per card
-      document.querySelectorAll(".facilitator-event").forEach(card => {
-        const link = card.querySelector("a[href]");
-        if (!link?.href) return;
-        const slug = link.href.split("/").filter(Boolean).pop();
-        const event = slugToEvent[slug];
-        if (!event) return;
-
-        const counts = { booked: 0, canceled: 0, checked: 0, "no-show": 0 };
-        (rsvpsByEvent[event.id] || []).forEach(r => {
-          if (r.booking_status in counts) counts[r.booking_status]++;
+    if (isFacilitator) {
+      const facilTemplate = document.querySelector(".event-template");
+      const facilContainer = facilTemplate?.parentElement;
+      if (facilTemplate && facilContainer) {
+        facilTemplate.classList.add("hide");
+        const rsvpsByEvent = {};
+        (data.facilitator_rsvps || []).forEach(r => {
+          if (!r.event_id) return;
+          if (!rsvpsByEvent[r.event_id]) rsvpsByEvent[r.event_id] = { booked: 0, checked: 0, canceled: 0, "no-show": 0 };
+          if (r.booking_status in rsvpsByEvent[r.event_id]) rsvpsByEvent[r.event_id][r.booking_status]++;
         });
-        console.log(`[FACILITATOR] ${slug} counts:`, counts);
-
-        for (const [status, count] of Object.entries(counts)) {
-          const el = card.querySelector(`[data-field="${status}"]`);
-          if (el) el.textContent = count;
-        }
-
-        const capacityEl = card.querySelector('[data-field="event_current_capacity"]');
-        console.log(`[FACILITATOR] ${slug} capacity el:`, capacityEl, "value:", event.event_current_capacity);
-        if (capacityEl) capacityEl.textContent = event.event_current_capacity;
-      });
+        (data.facilitator_events || []).forEach(ev => {
+          const clone = facilTemplate.cloneNode(true);
+          clone.classList.remove("hide");
+          const counts = rsvpsByEvent[ev.id] || { booked: 0, checked: 0, canceled: 0, "no-show": 0 };
+          const set = (field, val) => {
+            const el = clone.querySelector(`[data-field="${field}"]`);
+            if (el) el.textContent = val ?? "--";
+          };
+          if (ev.event_slug) clone.href = `/events-2026/${ev.event_slug}`;
+          set("event_name", ev.event_name);
+          set("event_slug", ev.event_slug);
+          set("event_capacity", ev.event_capacity);
+          set("event_status", ev.event_status);
+          set("booked", counts.booked);
+          set("checked", counts.checked);
+          set("canceled", counts.canceled);
+          set("no-show", counts["no-show"]);
+          set("event_current_capacity", ev.event_current_capacity);
+          facilContainer.appendChild(clone);
+        });
+      } else {
+        console.warn("[FACILITATOR] .event-template not found");
+      }
     }
 
     state.data = data;
@@ -628,7 +605,6 @@ function renderFields(data) {
     updateFacilitatorMenu(data);
     updateCancelPlan(data);
     filterMyEvents(data);
-    filterFacilitatorEvents(data);
     renderFields(data);
     applyViewModeLocking();
     syncFilledUIState();
