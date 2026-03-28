@@ -620,6 +620,7 @@ function renderFields(data) {
         if (match) planSelect.value = match.value;
         if (recurrentBtn) recurrentBtn.textContent = "upgrade your plan";
         if (cancelSub) cancelSub.classList.remove("hide");
+        document.querySelectorAll(".current-plan").forEach(el => el.classList.remove("hide"));
       } else {
         planSelect.value = "";
       }
