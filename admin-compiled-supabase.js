@@ -562,13 +562,14 @@
             const el = clone.querySelector(`[data-field="${field}"]`);
             if (el) el.textContent = val ?? "--";
           };
+          set("event_name", ev.event_name);
           set("event_slug", ev.event_slug);
+          set("event_capacity", ev.event_capacity);
+          set("event_status", ev.event_status);
           set("booked", counts.booked);
           set("checked", counts.checked);
           set("canceled", counts.canceled);
           set("no-show", counts["no-show"]);
-          set("event_current_capacity", ev.event_capacity);
-          set("event_status", ev.event_status);
           container.appendChild(clone);
         });
       } else {
