@@ -857,4 +857,41 @@ function renderFields(data) {
     if (backToListBtn) backToListBtn.addEventListener("click", showMessageList);
   });
 
+  /*=========================================================
+    SECTION 9 — ONE-TIME DONATION
+    src: donation-checkout.js
+    Route: /donation-checkout (Stripe direct)
+  =========================================================*/
+  document.addEventListener("DOMContentLoaded", () => {
+    const donateBtn   = document.getElementById("on-time-donation");
+    const amountInput = document.getElementById("donation-amount");
+    if (!donateBtn) return;
+
+    donateBtn.addEventListener("click", async () => {
+      try {
+        const member = await window.$memberstackDom.getCurrentMember();
+        if (!member) { alert("You must be logged in to donate."); return; }
+        const memberId = member.data.id;
+        const email = member.data.email || document.querySelector('[data-ms-member="email"]')?.textContent?.trim();
+        if (!amountInput) { alert("Donation amount input not found."); return; }
+        const amount = Number(amountInput.value);
+        if (!amount || amount <= 0) { alert("Please enter a valid amount."); return; }
+
+        const response = await fetch("https://houseofmore.nico-97c.workers.dev/donation-checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount: Math.round(amount * 100), memberId, email })
+        });
+        let data;
+        try { data = JSON.parse(await response.text()); }
+        catch (err) { console.error("[MEMBER] Invalid JSON from donation checkout:", err); alert("Invalid response from server."); return; }
+        if (!data.url) { alert("Checkout URL not returned."); return; }
+        window.location.href = data.url;
+      } catch (error) {
+        console.error("[MEMBER] Donation checkout error:", error);
+        alert("Something went wrong.");
+      }
+    });
+  });
+
 })();
