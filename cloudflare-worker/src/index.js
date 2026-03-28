@@ -1541,7 +1541,6 @@ async function handleDonationCheckout(payload, env, origin) {
   params.set("success_url",  "https://www.thehouseofmore.com/app/member?donation=confirm");
   params.set("cancel_url",   "https://www.thehouseofmore.com/app/member?donation=not-confirm");
   params.set("customer_email",        email);
-  params.set("receipt_email",         email);
   params.set("metadata[member_id]",   memberId);
 
   const stripeRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
