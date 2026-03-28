@@ -610,6 +610,21 @@ function renderFields(data) {
     const alertEl = document.querySelector(".app-button.messages .alert");
     if (alertEl) alertEl.classList.toggle("hide", !data.unread_messages_count);
 
+    const planSelect       = document.getElementById("membership-tier");
+    const recurrentBtn     = document.getElementById("recurrent-donation");
+    const cancelSub        = document.getElementById("cancel-subscription");
+    if (planSelect) {
+      if (data.subscription_plan) {
+        const plan  = data.subscription_plan.toLowerCase();
+        const match = Array.from(planSelect.options).find(opt => opt.value.startsWith(plan));
+        if (match) planSelect.value = match.value;
+        if (recurrentBtn) recurrentBtn.textContent = "upgrade your plan";
+        if (cancelSub) cancelSub.classList.remove("hide");
+      } else {
+        planSelect.value = "";
+      }
+    }
+
     updateFacilitatorMenu(data);
     updateCancelPlan(data);
     filterMyEvents(data);
