@@ -752,6 +752,7 @@ function renderFields(data) {
         clone.classList.remove("hide");
         clone.dataset.messageId = msg.id;
         if (msg.read) clone.classList.add("read");
+        else clone.classList.add("new");
         const set = (field, val) => {
           const el = clone.querySelector(`[data-field="${field}"]`);
           if (el) el.textContent = val ?? "";
@@ -770,6 +771,7 @@ function renderFields(data) {
         showMessageView();
         if (!firstClone.classList.contains("read")) {
           firstClone.classList.add("read");
+          firstClone.classList.remove("new");
           markAction(firstClone.dataset.messageId, "read");
           updateAlert();
         }
@@ -810,6 +812,7 @@ function renderFields(data) {
       showMessageView();
       if (!row.classList.contains("read")) {
         row.classList.add("read");
+        row.classList.remove("new");
         await markAction(row.dataset.messageId, "read");
         updateAlert();
       }
