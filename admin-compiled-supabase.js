@@ -261,31 +261,23 @@
       sendBtn.addEventListener("click", async () => {
         const subject = newSubject?.value.trim() || "";
         const recipient = newRecipient?.value.trim() || "";
-        const rawMessage = newMessageText?.value || "";
-        const message = rawMessage.replace(/"/g, '\\"').replace(/\n/g, "<br>");
+        const message = newMessageText?.value.trim() || "";
         if (!subject || !message || !recipient) {
           alert("Please fill subject, recipient, and message");
           return;
         }
-        const payload = {
-          data: {
-            subject,
-            message,
-            date: new Date().toISOString(),
-            to: recipient,
-            message_id: ""
-          }
-        };
-        console.log("[ADMIN] Sending message payload:", payload);
+        const memberId = document.querySelector('[data-ms-member="id"]')?.textContent?.trim();
+        if (!memberId) { console.error("[ADMIN] member_id not found"); return; }
         try {
-          const response = await fetch(MESSAGES_WEBHOOK, {
+          const res = await fetch("https://houseofmore.nico-97c.workers.dev/admin-create-message", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ member_id: memberId, subject, message, recipient }),
           });
-          console.log("[ADMIN] Send message response:", await response.text());
-          sessionStorage.setItem("loadMessagesAfterReload", "true");
-          setTimeout(() => location.reload(), 2000);
+          const data = await res.json();
+          if (!res.ok || !data.success) throw new Error(data.error || "Failed to create message");
+          console.log("[ADMIN] Message created:", data.message);
+          location.reload();
         } catch (error) {
           console.error("[ADMIN] Send message error:", error);
         }

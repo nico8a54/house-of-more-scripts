@@ -1091,6 +1091,50 @@ const ACTION_STATUS_MAP = {
   unfreeze: { application_status: "approved",    subscription_plan: null },
 };
 
+async function handleAdminCreateMessage(request, env, origin) {
+  const cors = corsHeaders(origin, env);
+  let payload;
+  try { payload = await request.json(); } catch {
+    return new Response("Bad request", { status: 400, headers: cors });
+  }
+
+  const { member_id, subject, message, recipient } = payload;
+  if (!member_id || !subject || !message || !recipient) {
+    return new Response("member_id, subject, message, and recipient required", { status: 400, headers: cors });
+  }
+
+  // Verify caller has admin plan
+  const msRes = await fetch(
+    `https://admin.memberstack.com/members/${encodeURIComponent(member_id)}`,
+    { headers: { "x-api-key": env.MEMBERSTACK_KEY } }
+  );
+  if (!msRes.ok) return new Response("Member not found", { status: 404, headers: cors });
+  const msJson = await msRes.json();
+  const connections = parsePlanConnections(msJson.data?.planConnections || []);
+  if (!connections.some(c => c.planId === PLAN_IDS.admin)) {
+    return new Response("Forbidden", { status: 403, headers: cors });
+  }
+
+  const sbHeaders = {
+    "apikey":        env.SUPABASE_KEY,
+    "Authorization": `Bearer ${env.SUPABASE_KEY}`,
+    "Content-Type":  "application/json",
+    "Prefer":        "return=representation",
+  };
+
+  const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/admin_messages`, {
+    method: "POST",
+    headers: sbHeaders,
+    body: JSON.stringify({ subject, message, recipient }),
+  });
+  if (!insertRes.ok) throw new Error(`Supabase insert error (${insertRes.status})`);
+
+  const [created] = await insertRes.json();
+  return new Response(JSON.stringify({ success: true, message: created }), {
+    status: 200, headers: { "Content-Type": "application/json", ...cors },
+  });
+}
+
 async function handleAdminApproveMember(request, env) {
   let payload;
   try { payload = await request.json(); } catch { return new Response("Bad request", { status: 400 }); }
@@ -1525,6 +1569,24 @@ export default {
     }
 
     // Admin approve/reject/freeze/unfreeze (Supabase direct)
+    if (path === "/admin-create-message") {
+      if (!env.SUPABASE_KEY || !env.MEMBERSTACK_KEY) {
+        return new Response("Server misconfiguration", { status: 500 });
+      }
+      try {
+        const data = await handleAdminCreateMessage(request, env, origin);
+        return new Response(JSON.stringify(data), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      }
+    }
+
     if (path === "/admin-approve-member") {
       if (!env.SUPABASE_KEY || !env.MEMBERSTACK_KEY) {
         return new Response("Server misconfiguration", { status: 500 });
