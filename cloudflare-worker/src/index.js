@@ -695,13 +695,14 @@ async function handleMemberProfileSupabase(payload, env) {
   };
   const mid = encodeURIComponent(member_id);
 
-  const [profileRes, questionnaireRes, rsvpsRes, donationsRes, msRes, unreadMsgRes] = await Promise.all([
+  const [profileRes, questionnaireRes, rsvpsRes, donationsRes, msRes, allMsgRes, readMsgRes] = await Promise.all([
     fetch(`${SUPABASE_URL}/rest/v1/member_profiles?member_id=eq.${mid}&select=*`,                         { headers: sbHeaders }),
     fetch(`${SUPABASE_URL}/rest/v1/member_questionnaire?member_id=eq.${mid}&select=*`,                    { headers: sbHeaders }),
     fetch(`${SUPABASE_URL}/rest/v1/event_rsvps?member_id=eq.${mid}&select=*,events(event_slug)&order=booked_at.desc`, { headers: sbHeaders }),
     fetch(`${SUPABASE_URL}/rest/v1/donations?member_id=eq.${mid}&select=*&order=created_at.desc`,         { headers: sbHeaders }),
     fetch(`https://admin.memberstack.com/members/${member_id}`, { headers: { "x-api-key": env.MEMBERSTACK_KEY } }),
-    fetch(`${SUPABASE_URL}/rest/v1/member_messages?member_id=eq.${mid}&read=eq.false&erased=eq.false&select=id`, { headers: sbHeaders }),
+    fetch(`${SUPABASE_URL}/rest/v1/admin_messages?select=id`,                                                    { headers: sbHeaders }),
+    fetch(`${SUPABASE_URL}/rest/v1/member_messages?member_id=eq.${mid}&read=eq.true&select=id`,                  { headers: sbHeaders }),
   ]);
 
   if (!profileRes.ok) {
@@ -709,12 +710,13 @@ async function handleMemberProfileSupabase(payload, env) {
     throw new Error(`Supabase member_profiles error (${profileRes.status}): ${err}`);
   }
 
-  const [profiles, questionnaires, rsvps, donations, unreadMsgs] = await Promise.all([
+  const [profiles, questionnaires, rsvps, donations, allMsgs, readMsgs] = await Promise.all([
     profileRes.json(),
     questionnaireRes.ok ? questionnaireRes.json() : Promise.resolve([]),
     rsvpsRes.ok        ? rsvpsRes.json()          : Promise.resolve([]),
     donationsRes.ok    ? donationsRes.json()       : Promise.resolve([]),
-    unreadMsgRes.ok    ? unreadMsgRes.json()       : Promise.resolve([]),
+    allMsgRes.ok       ? allMsgRes.json()           : Promise.resolve([]),
+    readMsgRes.ok      ? readMsgRes.json()          : Promise.resolve([]),
   ]);
 
   const profile      = profiles[0]        || {};
@@ -766,7 +768,7 @@ async function handleMemberProfileSupabase(payload, env) {
     questionnaire,
     rsvps:                 rsvps.length     ? rsvps.map(r => ({ ...r, event_slug: r.events?.event_slug || null })) : [emptyRsvp],
     donations:             donations.length ? donations : [emptyDonation],
-    unread_messages_count: unreadMsgs.length,
+    unread_messages_count: Math.max(0, allMsgs.length - readMsgs.length),
     ...(isFacilitator && { facilitator_rsvps, facilitator_events }),
   };
 }
