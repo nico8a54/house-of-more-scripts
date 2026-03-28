@@ -751,8 +751,7 @@ function renderFields(data) {
         const clone = template.cloneNode(true);
         clone.classList.remove("hide");
         clone.dataset.messageId = msg.id;
-        if (msg.read) clone.classList.add("read");
-        else clone.classList.add("new");
+        if (msg.read) { clone.classList.add("read"); clone.classList.remove("new"); }
         const set = (field, val) => {
           const el = clone.querySelector(`[data-field="${field}"]`);
           if (el) el.textContent = val ?? "";
