@@ -1574,11 +1574,7 @@ export default {
         return new Response("Server misconfiguration", { status: 500 });
       }
       try {
-        const data = await handleAdminCreateMessage(request, env, origin);
-        return new Response(JSON.stringify(data), {
-          status: 200,
-          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
-        });
+        return await handleAdminCreateMessage(request, env, origin);
       } catch (err) {
         console.error(err);
         return new Response(JSON.stringify({ error: err.message }), {

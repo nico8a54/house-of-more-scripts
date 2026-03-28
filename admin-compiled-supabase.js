@@ -280,8 +280,34 @@
           const data = await res.json();
           console.log("[ADMIN] Create message response:", res.status, data);
           if (!res.ok || !data.success) throw new Error(data.error || "Failed to create message");
-          console.log("[ADMIN] Message created:", data.message);
-          location.reload();
+
+          // Clone template, populate, prepend to list
+          const msgTemplate = document.querySelector(".message-template.admin");
+          const msgContainer = msgTemplate?.parentElement;
+          if (msgTemplate && msgContainer) {
+            const clone = msgTemplate.cloneNode(true);
+            clone.classList.remove("hide");
+            const msg = data.message || {};
+            const setField = (field, val) => {
+              const el = clone.querySelector(`[data-field="${field}"]`);
+              if (el) el.textContent = val ?? "";
+            };
+            setField("subject", msg.subject || subject);
+            setField("message", msg.message || message);
+            setField("recipient", msg.recipient || recipient);
+            setField("date", msg.date || new Date().toISOString());
+            document.querySelectorAll(".message-template.admin").forEach(r => r.classList.remove("active"));
+            clone.classList.add("active");
+            msgTemplate.insertAdjacentElement("afterend", clone);
+            renderMessage(clone);
+          }
+
+          // Return to reading view
+          if (messageForm) messageForm.classList.add("hide");
+          if (sendMessageWrapper) sendMessageWrapper.classList.add("hide");
+          if (readingBlock) readingBlock.classList.remove("hide");
+          if (newMessageBtn) newMessageBtn.classList.remove("disable");
+          if (form) form.reset();
         } catch (error) {
           console.error("[ADMIN] Send message error:", error);
         }
