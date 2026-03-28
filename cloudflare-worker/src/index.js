@@ -695,12 +695,13 @@ async function handleMemberProfileSupabase(payload, env) {
   };
   const mid = encodeURIComponent(member_id);
 
-  const [profileRes, questionnaireRes, rsvpsRes, donationsRes, msRes] = await Promise.all([
+  const [profileRes, questionnaireRes, rsvpsRes, donationsRes, msRes, unreadMsgRes] = await Promise.all([
     fetch(`${SUPABASE_URL}/rest/v1/member_profiles?member_id=eq.${mid}&select=*`,                         { headers: sbHeaders }),
     fetch(`${SUPABASE_URL}/rest/v1/member_questionnaire?member_id=eq.${mid}&select=*`,                    { headers: sbHeaders }),
     fetch(`${SUPABASE_URL}/rest/v1/event_rsvps?member_id=eq.${mid}&select=*,events(event_slug)&order=booked_at.desc`, { headers: sbHeaders }),
     fetch(`${SUPABASE_URL}/rest/v1/donations?member_id=eq.${mid}&select=*&order=created_at.desc`,         { headers: sbHeaders }),
     fetch(`https://admin.memberstack.com/members/${member_id}`, { headers: { "x-api-key": env.MEMBERSTACK_KEY } }),
+    fetch(`${SUPABASE_URL}/rest/v1/member_messages?member_id=eq.${mid}&read=eq.false&erased=eq.false&select=id`, { headers: sbHeaders }),
   ]);
 
   if (!profileRes.ok) {
@@ -708,11 +709,12 @@ async function handleMemberProfileSupabase(payload, env) {
     throw new Error(`Supabase member_profiles error (${profileRes.status}): ${err}`);
   }
 
-  const [profiles, questionnaires, rsvps, donations] = await Promise.all([
+  const [profiles, questionnaires, rsvps, donations, unreadMsgs] = await Promise.all([
     profileRes.json(),
     questionnaireRes.ok ? questionnaireRes.json() : Promise.resolve([]),
     rsvpsRes.ok        ? rsvpsRes.json()          : Promise.resolve([]),
     donationsRes.ok    ? donationsRes.json()       : Promise.resolve([]),
+    unreadMsgRes.ok    ? unreadMsgRes.json()       : Promise.resolve([]),
   ]);
 
   const profile      = profiles[0]        || {};
@@ -762,10 +764,83 @@ async function handleMemberProfileSupabase(payload, env) {
     ...profile,
     plan_name,
     questionnaire,
-    rsvps:     rsvps.length     ? rsvps.map(r => ({ ...r, event_slug: r.events?.event_slug || null })) : [emptyRsvp],
-    donations: donations.length ? donations : [emptyDonation],
+    rsvps:                 rsvps.length     ? rsvps.map(r => ({ ...r, event_slug: r.events?.event_slug || null })) : [emptyRsvp],
+    donations:             donations.length ? donations : [emptyDonation],
+    unread_messages_count: unreadMsgs.length,
     ...(isFacilitator && { facilitator_rsvps, facilitator_events }),
   };
+}
+
+async function handleMemberMessages(payload, env) {
+  const { member_id } = payload;
+  if (!member_id) throw new Error("member_id is required");
+
+  const sbHeaders = {
+    "apikey":        env.SUPABASE_KEY,
+    "Authorization": `Bearer ${env.SUPABASE_KEY}`,
+  };
+  const mid = encodeURIComponent(member_id);
+
+  const [adminMsgRes, memberMsgRes] = await Promise.all([
+    fetch(`${SUPABASE_URL}/rest/v1/admin_messages?select=*&order=date.desc`, { headers: sbHeaders }),
+    fetch(`${SUPABASE_URL}/rest/v1/member_messages?member_id=eq.${mid}&select=*`, { headers: sbHeaders }),
+  ]);
+
+  const adminMessages  = adminMsgRes.ok  ? await adminMsgRes.json()  : [];
+  const memberMessages = memberMsgRes.ok ? await memberMsgRes.json() : [];
+
+  const stateByMsgId = {};
+  memberMessages.forEach(m => { stateByMsgId[m.admin_message_id] = m; });
+
+  return adminMessages.map(msg => {
+    const state = stateByMsgId[msg.id] || {};
+    return {
+      id:        msg.id,
+      subject:   msg.subject,
+      message:   msg.message,
+      recipient: msg.recipient,
+      date:      msg.date,
+      read:      state.read    ?? false,
+      erased:    state.erased  ?? false,
+    };
+  });
+}
+
+async function handleMemberMessageAction(payload, env) {
+  const { member_id, message_id, action } = payload;
+  if (!member_id || !message_id || !action) throw new Error("member_id, message_id, action required");
+
+  const sbHeaders = {
+    "apikey":        env.SUPABASE_KEY,
+    "Authorization": `Bearer ${env.SUPABASE_KEY}`,
+    "Content-Type":  "application/json",
+    "Prefer":        "return=minimal",
+  };
+  const mid   = encodeURIComponent(member_id);
+  const msgId = encodeURIComponent(message_id);
+
+  const existingRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/member_messages?admin_message_id=eq.${msgId}&member_id=eq.${mid}&select=id`,
+    { headers: sbHeaders }
+  );
+  const existing = existingRes.ok ? await existingRes.json() : [];
+  const update   = action === "read" ? { read: true } : { erased: true };
+
+  if (existing.length) {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/member_messages?id=eq.${existing[0].id}`,
+      { method: "PATCH", headers: sbHeaders, body: JSON.stringify(update) }
+    );
+    if (!res.ok) throw new Error(`Supabase PATCH error (${res.status}): ${await res.text()}`);
+  } else {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/member_messages`,
+      { method: "POST", headers: sbHeaders, body: JSON.stringify({ admin_message_id: message_id, member_id, ...update }) }
+    );
+    if (!res.ok) throw new Error(`Supabase POST error (${res.status}): ${await res.text()}`);
+  }
+
+  return { success: true };
 }
 
 async function handleEventData(payload, env) {
@@ -1575,6 +1650,44 @@ export default {
       }
       try {
         return await handleAdminCreateMessage(request, env, origin);
+      } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      }
+    }
+
+    // Member messages (Supabase direct)
+    if (path === "/member-messages-supabase") {
+      if (!env.SUPABASE_KEY) return new Response("Server misconfiguration", { status: 500 });
+      let payload;
+      try { payload = await request.json(); } catch { return new Response("Bad request", { status: 400 }); }
+      try {
+        const data = await handleMemberMessages(payload, env);
+        return new Response(JSON.stringify(data), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      }
+    }
+
+    // Member message action — mark read or erase (Supabase direct)
+    if (path === "/member-message-action-supabase") {
+      if (!env.SUPABASE_KEY) return new Response("Server misconfiguration", { status: 500 });
+      let payload;
+      try { payload = await request.json(); } catch { return new Response("Bad request", { status: 400 }); }
+      try {
+        const data = await handleMemberMessageAction(payload, env);
+        return new Response(JSON.stringify(data), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
       } catch (err) {
         console.error(err);
         return new Response(JSON.stringify({ error: err.message }), {

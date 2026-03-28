@@ -1,6 +1,8 @@
 (function () {
   "use strict";
 
+  let memberIsFacilitator = false;
+
   /*=========================================================
     SECTION 1 — TAB NAVIGATION
     src: navigate-tabs.js
@@ -602,6 +604,12 @@ function renderFields(data) {
 
     state.data = data;
 
+    memberIsFacilitator = Array.isArray(data?.plan_name) &&
+      data.plan_name.some(p => p?.planId === "pln_facilitator-9o1kw0j5o");
+
+    const alertEl = document.querySelector(".app-button.messages .alert");
+    if (alertEl) alertEl.classList.toggle("hide", !data.unread_messages_count);
+
     updateFacilitatorMenu(data);
     updateCancelPlan(data);
     filterMyEvents(data);
@@ -666,6 +674,169 @@ function renderFields(data) {
         console.error("[MEMBER] Profile update error:", err);
       }
     });
+  });
+
+  /*=========================================================
+    SECTION 8 — MESSAGES (Supabase)
+    src: member-messages-supabase.js
+  =========================================================*/
+  document.addEventListener("DOMContentLoaded", () => {
+    const memberIdEl = document.querySelector('[data-ms-member="id"]');
+    const memberId = (memberIdEl?.textContent || "").trim();
+    if (!memberId) return;
+
+    const messageView  = document.querySelector(".message-view");
+    const messageList  = document.getElementById("messages-list");
+    const backToListBtn = document.getElementById("back-to-list");
+
+    let messagesLoaded = false;
+    let messagesCache  = [];
+
+    function showMessageView() {
+      if (messageView) messageView.classList.remove("hide-mobile-landscape");
+      if (messageList) messageList.classList.add("hide-mobile-landscape");
+    }
+    function showMessageList() {
+      if (messageView) messageView.classList.add("hide-mobile-landscape");
+      if (messageList) messageList.classList.remove("hide-mobile-landscape");
+    }
+
+    function updateAlert() {
+      const alertEl = document.querySelector(".app-button.messages .alert");
+      if (!alertEl) return;
+      const hasUnread = Array.from(document.querySelectorAll(".message-template.admin:not(.hide)"))
+        .some(row => !row.classList.contains("read"));
+      alertEl.classList.toggle("hide", !hasUnread);
+    }
+
+    function renderMessage(row) {
+      if (!row) return;
+      row.querySelectorAll("[data-field]").forEach(field => {
+        const key = field.getAttribute("data-field");
+        const target = document.getElementById(key);
+        if (target) target.innerHTML = field.innerHTML;
+      });
+    }
+
+    async function markAction(messageId, action) {
+      try {
+        await fetch("https://houseofmore.nico-97c.workers.dev/member-message-action-supabase", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ member_id: memberId, message_id: messageId, action }),
+        });
+      } catch (err) {
+        console.error("[MEMBER] Message action error:", err);
+      }
+    }
+
+    function renderMessages(messages) {
+      const template  = document.querySelector(".message-template.admin");
+      const container = template?.parentElement;
+      if (!template || !container) { console.warn("[MEMBER] .message-template.admin not found"); return; }
+
+      container.querySelectorAll(".message-template.admin:not(.hide)").forEach(el => el.remove());
+      template.classList.add("hide");
+
+      const visible = messages.filter(msg => {
+        if (msg.erased) return false;
+        if (msg.recipient === "facilitators" && !memberIsFacilitator) return false;
+        return true;
+      });
+
+      const emptyEl = container.querySelector(".message-empty");
+      if (emptyEl) emptyEl.classList.toggle("hide", visible.length > 0);
+
+      visible.forEach(msg => {
+        const clone = template.cloneNode(true);
+        clone.classList.remove("hide");
+        clone.dataset.messageId = msg.id;
+        if (msg.read) clone.classList.add("read");
+        const set = (field, val) => {
+          const el = clone.querySelector(`[data-field="${field}"]`);
+          if (el) el.textContent = val ?? "";
+        };
+        set("subject",   msg.subject);
+        set("message",   msg.message);
+        set("recipient", msg.recipient);
+        set("date",      msg.date);
+        container.appendChild(clone);
+      });
+
+      const firstClone = container.querySelector(".message-template.admin:not(.hide)");
+      if (firstClone) {
+        firstClone.classList.add("active");
+        renderMessage(firstClone);
+        showMessageView();
+        if (!firstClone.classList.contains("read")) {
+          firstClone.classList.add("read");
+          markAction(firstClone.dataset.messageId, "read");
+          updateAlert();
+        }
+      }
+    }
+
+    async function loadMessages() {
+      if (messagesLoaded) return;
+      try {
+        const res = await fetch("https://houseofmore.nico-97c.workers.dev/member-messages-supabase", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ member_id: memberId }),
+        });
+        if (!res.ok) { console.error("[MEMBER] Messages load error:", res.status); return; }
+        messagesCache  = await res.json();
+        messagesLoaded = true;
+        console.log("[MEMBER] Messages loaded:", messagesCache.length);
+        renderMessages(messagesCache);
+      } catch (err) {
+        console.error("[MEMBER] Messages fetch error:", err);
+      }
+    }
+
+    // Tab click — lazy load
+    document.addEventListener("click", async (e) => {
+      if (!e.target.closest(".app-button.messages")) return;
+      await loadMessages();
+    });
+
+    // Message row click
+    document.addEventListener("click", async (e) => {
+      const row = e.target.closest(".message-template.admin:not(.hide)");
+      if (!row) return;
+      document.querySelectorAll(".message-template.admin").forEach(r => r.classList.remove("active"));
+      row.classList.add("active");
+      renderMessage(row);
+      showMessageView();
+      if (!row.classList.contains("read")) {
+        row.classList.add("read");
+        await markAction(row.dataset.messageId, "read");
+        updateAlert();
+      }
+    });
+
+    // Erase message
+    document.addEventListener("click", async (e) => {
+      if (!e.target.closest("#erase-message")) return;
+      const activeRow = document.querySelector(".message-template.admin.active");
+      if (!activeRow) return;
+      const msgId = activeRow.dataset.messageId;
+      activeRow.remove();
+      await markAction(msgId, "erase");
+      const cached = messagesCache.find(m => m.id === msgId);
+      if (cached) cached.erased = true;
+      const nextRow = document.querySelector(".message-template.admin:not(.hide)");
+      if (nextRow) {
+        document.querySelectorAll(".message-template.admin").forEach(r => r.classList.remove("active"));
+        nextRow.classList.add("active");
+        renderMessage(nextRow);
+      } else {
+        showMessageList();
+      }
+      updateAlert();
+    });
+
+    if (backToListBtn) backToListBtn.addEventListener("click", showMessageList);
   });
 
 })();
