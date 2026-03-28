@@ -1593,7 +1593,6 @@ async function handleStripeWebhook(request, env) {
 
   const session        = event.data.object;
   const memberId       = session.metadata?.member_id;
-  const email          = session.customer_details?.email || session.customer_email;
   const amountTotal    = session.amount_total; // cents
   const paymentIntentId = session.payment_intent;
 
@@ -1628,10 +1627,8 @@ async function handleStripeWebhook(request, env) {
     headers: sbHeaders,
     body: JSON.stringify({
       member_id:      memberId,
-      email,
       amount:         amountTotal,
       type:           "one-time",
-      status:         "paid",
       receipt_url:    receiptUrl,
       transaction_id: paymentIntentId,
     }),
