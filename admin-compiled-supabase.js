@@ -562,7 +562,7 @@
             const el = clone.querySelector(`[data-field="${field}"]`);
             if (el) el.textContent = val ?? "--";
           };
-          if (ev.event_slug) clone.href = `/${ev.event_slug}`;
+          if (ev.event_slug) clone.href = `/events-2026/${ev.event_slug}`;
           set("event_name", ev.event_name);
           set("event_slug", ev.event_slug);
           set("event_capacity", ev.event_capacity);
