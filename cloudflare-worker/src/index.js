@@ -1062,7 +1062,7 @@ async function handleMemberstackPlanSync(request, env) {
   if (!signature) return new Response("Unauthorized", { status: 401 });
 
   const rawBody = await request.text();
-  if (!(await verifyWebflowSignature(rawBody, signature, env.MEMBERSTACK_WEBHOOK_SECRET))) {
+  if (signature !== env.MEMBERSTACK_WEBHOOK_SECRET) {
     return new Response("Unauthorized", { status: 401 });
   }
 
@@ -1070,7 +1070,7 @@ async function handleMemberstackPlanSync(request, env) {
   try { body = JSON.parse(rawBody); } catch { return new Response("Bad request", { status: 400 }); }
 
   const event = body.event || "";
-  if (!["memberstack.member.plan.added", "memberstack.member.plan.removed", "memberstack.member.plan.updated", "memberstack.member.plan.canceled"].includes(event)) {
+  if (!["member.plan.added", "member.plan.removed", "member.plan.updated", "member.plan.canceled"].includes(event)) {
     return new Response(JSON.stringify({ ok: true, skipped: event }), {
       status: 200, headers: { "Content-Type": "application/json" },
     });
