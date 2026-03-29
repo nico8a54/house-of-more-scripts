@@ -54,7 +54,7 @@ CORS allowed origins: `https://www.thehouseofmore.com`, `https://thehouseofmore.
 - `POST /memberstack-add-plan` — called by Supabase DB webhook on `member_profiles` INSERT → adds `pln_members-5kbh0gjx` to member in Memberstack
 - `POST /event-data` — fetches event from `events_with_capacity` view by `event_slug` + member plan info from Memberstack in parallel. RSVPs (with embedded `member_profiles`: first_name, last_name, email, member_id) only fetched and returned if member has admin or facilitator plan. Returns `{ event, rsvps, current_capacity, member }`.
 - `POST /member-rsvp-supabase` — handles RSVP booking, cancel, waiting-list for members. Writes `member` boolean to `event_rsvps`. Returns `{ message, success, alreadyBooked? }`. Guards: already booked (booked/waitlist) → `success: false, alreadyBooked: true`; prior cancellation → `success: false` (no re-booking allowed, must email info@thehouseofmore.com); event not found → `success: false`.
-- `POST /memberstack-plan-sync` — Memberstack webhook receiver (`member.plan.added` / `member.plan.removed`). Verifies `x-memberstack-signature` (HMAC-SHA256, secret: `MEMBERSTACK_WEBHOOK_SECRET`). Resolves `application_status` + `subscription_plan` from full `planConnections` using priority: frozen → admin → paid tier → approved → facilitator-only → rejected → pending. PATCHes `member_profiles`. Skips unknown events with 200.
+- `POST /memberstack-plan-sync` — Memberstack webhook receiver (`member.plan.added` / `member.plan.canceled` / `member.plan.updated`). Memberstack delivers via **Svix** — verifies `svix-id` + `svix-timestamp` + `svix-signature` headers using HMAC-SHA256 over `"${svixId}.${svixTimestamp}.${rawBody}"` with base64-decoded `MEMBERSTACK_WEBHOOK_SECRET`. Payload: `body.event`, `body.payload.member.id`. Fetches full member from Memberstack API (`/members/:id`) to get all `planConnections`. Finds active paid plan using `c.active === true` (not `payment.status` — that stays "PAID" even after cancellation). Sets `subscription_plan` to lowercased plan name, or `null` if no active paid plan. **Only writes `subscription_plan` — never touches `application_status`.** Skips unknown events with 200.
 - `POST /admin-approve-member` — **Migrated from Make.com.** Receives `{ member_id, plan_id, action }`. Calls Memberstack `/add-plan`, then PATCHes `member_profiles.application_status` + `subscription_plan` in Supabase. Actions: `approve` → `approved`, `reject` → `rejected`, `freeze` → `frozen`, `unfreeze` → `approved`. Requires `MEMBERSTACK_KEY` + `SUPABASE_KEY`.
 - `POST /admin-create-message` — Creates a new `admin_messages` record. Receives `{ member_id, subject, message, recipient }`. Verifies caller has admin plan via Memberstack. Inserts into `admin_messages`, returns `{ success: true, message: <inserted row> }`. Uses `Prefer: return=representation` to get the created record back.
 - `POST /member-messages-supabase` — Fetches all `admin_messages` (ordered `date.desc`) + `member_messages` for this member in parallel. Merges per-message `read`/`erased` state (defaults false if no row exists). Returns `[{ id, subject, message, recipient, date, read, erased }]`.
@@ -95,9 +95,7 @@ URL: `https://wioktwzioxzgmntgxsme.supabase.co`
 - `PROFILE_FIELDS` — first_name, last_name, phone, birthday, gender, marital_status, location
 - `QUESTIONNAIRE_FIELDS` — all 12 questionnaire columns including skills_to_share
 - `PLAN_IDS` — plan ID constants: active, admin, facilitator, frozen, pending, rejected (see below)
-- `PAID_PLAN_NAMES` — Set of paid plan names: neighbor, supporter, advocate, builder, sustainer, patron, partner, champion, visionary
-- `parsePlanConnections(connections)` — shared helper, returns `[{ planId, planName, status, type }]`
-- `resolveStatusFromConnections(connections)` — returns `{ application_status, subscription_plan }` using priority: frozen → admin → paid tier → approved → facilitator-only → rejected → pending. Used by `/memberstack-plan-sync` and `/admin-approve-member`.
+- `parsePlanConnections(connections)` — shared helper, returns `[{ planId, planName, status, type }]`. Note: `status` is derived from `c.payment?.status || c.status` — unreliable for detecting cancellation (payment.status stays "PAID" after cancel). Use `c.active` boolean directly on raw planConnections when accuracy matters.
 
 ### Edge Functions
 - `webflow-event-sync` — `https://wioktwzioxzgmntgxsme.supabase.co/functions/v1/webflow-event-sync`
@@ -144,7 +142,13 @@ Member ID format: `mem_...`
 - Pending: `pln_members-5kbh0gjx`
 - Rejected: `pln_rejected-fo1l60nm3`
 
-Note: Memberstack GET member returns `planConnections[].planId` and `type` (FREE/paid). `planName` may be empty — always check by `planId`.
+Note: Memberstack GET member returns `planConnections[].planId`, `type` (FREE/paid), and `active` (boolean — use this to detect truly active plans; `payment.status` stays "PAID" even after cancellation). `planName` may be empty — always check by `planId`.
+
+### application_status values
+`pending` → `active` → `rejected` / `frozen` / `admin` / `facilitator`
+- Free plan lifecycle is stored in `application_status`
+- Paid plan tier is stored in `subscription_plan` (separate field, null for free members)
+- ⚠️ Naming mismatch: Memberstack plan is called "Active" but `STATUS_TO_PLAN_ID` maps `"approved"` → `pln_approved-member-bd2jv0hp1`. Both `"approved"` and `"active"` may appear in `application_status` — needs reconciliation.
 
 ---
 
@@ -209,7 +213,7 @@ Note: `rsvps` and `donations` return a skeleton object with null values when emp
 - Edit mode (`#edit-form` click): strips `.filled` from all form elements and `.field-text`; email field kept `.filled` + `.locked` — members cannot change it
 - Cancel: re-renders from cached `state.data`, restores view mode
 - `updateFacilitatorMenu` — shows `.menu-wrapper.facilitator` if plan `planId === "pln_facilitator-9o1kw0j5o"`
-- `updateCancelPlan` — shows `.cancel-plan` if active pay plan exists
+- `updateCancelPlan` — shows `.cancel-plan` if `data.subscription_plan` is set (wired to Supabase, not Memberstack `plan_name` — Memberstack keeps canceled plans with `payment.status: "PAID"` which is unreliable)
 - **Unread alert**: removes `.hide` from `.app-button.messages .alert` if `data.unread_messages_count > 0` — set on page load from profile response
 - **Membership tier select** (`#membership-tier`): if `data.subscription_plan` exists, finds matching option by `value.startsWith(plan)` and selects it; otherwise selects first option (`value=""`)
 - **Paid plan UI**: if `subscription_plan` exists → `#recurrent-donation` text set to "upgrade your plan", removes `.hide` from `#cancel-subscription` and `.current-plan` elements
