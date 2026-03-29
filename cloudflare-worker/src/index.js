@@ -1381,6 +1381,7 @@ async function handleSendDonationReceipt(request, env) {
     });
   }
 
+  const isSubscription  = record.type === "subscription";
   const amountFormatted = "$" + ((Number(amount) || 0) / 100).toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -1425,7 +1426,7 @@ async function handleSendDonationReceipt(request, env) {
         <tr>
           <td align="left" style="padding:0 50px;">
             <div style="font-family:Georgia, serif; font-size:26px; color:#2b2b2b; line-height:34px;">
-              Thank you${firstName ? `, ${firstName}` : ""} for your donation
+              Thank you${firstName ? `, ${firstName}` : ""} for your ${isSubscription ? "monthly donation" : "donation"}
             </div>
           </td>
         </tr>
@@ -1480,7 +1481,7 @@ async function handleSendDonationReceipt(request, env) {
     body: JSON.stringify({
       from:    "onboarding@resend.dev",
       to:      email,
-      subject: `Your donation receipt — ${amountFormatted}`,
+      subject: `Your ${isSubscription ? "monthly " : ""}donation receipt — ${amountFormatted}`,
       html,
     }),
   });
@@ -1585,7 +1586,35 @@ async function handleDonationCheckout(payload, env, origin) {
   });
 }
 
-// ─── Stripe: webhook receiver (checkout.session.completed → Supabase) ────────
+// ─── Shared: insert a donation row into Supabase ─────────────────────────────
+async function insertDonation(env, row) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/donations`, {
+    method:  "POST",
+    headers: {
+      "Content-Type":  "application/json",
+      "apikey":        env.SUPABASE_KEY,
+      "Authorization": `Bearer ${env.SUPABASE_KEY}`,
+      "Prefer":        "return=minimal",
+    },
+    body: JSON.stringify(row),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    // 409 = duplicate transaction_id (already processed — idempotent)
+    if (res.status === 409) {
+      console.log("[DONATION] Duplicate transaction, skipping:", row.transaction_id);
+      return new Response("OK", { status: 200 });
+    }
+    console.error("[DONATION] Supabase insert error:", res.status, errText);
+    return new Response("Supabase error", { status: 500 }); // Stripe will retry
+  }
+
+  console.log("[DONATION] Saved — member:", row.member_id, "type:", row.type, "amount:", row.amount);
+  return new Response("OK", { status: 200 });
+}
+
+// ─── Stripe: webhook receiver ─────────────────────────────────────────────────
 async function handleStripeWebhook(request, env) {
   const body = await request.text();
   const sigHeader = request.headers.get("Stripe-Signature");
@@ -1602,61 +1631,83 @@ async function handleStripeWebhook(request, env) {
   try { event = JSON.parse(body); }
   catch { return new Response("Invalid JSON", { status: 400 }); }
 
-  // Only handle checkout completion — acknowledge everything else
-  if (event.type !== "checkout.session.completed") {
-    return new Response("OK", { status: 200 });
-  }
+  // ── one-time donation ─────────────────────────────────────────────────────
+  if (event.type === "checkout.session.completed") {
+    const session         = event.data.object;
+    const memberId        = session.metadata?.member_id;
+    const amountTotal     = session.amount_total; // cents
+    const paymentIntentId = session.payment_intent;
 
-  const session        = event.data.object;
-  const memberId       = session.metadata?.member_id;
-  const amountTotal    = session.amount_total; // cents
-  const paymentIntentId = session.payment_intent;
+    if (!memberId || !paymentIntentId) {
+      console.error("[STRIPE WEBHOOK] Missing member_id or payment_intent in session:", session.id);
+      return new Response("OK", { status: 200 });
+    }
 
-  if (!memberId || !paymentIntentId) {
-    console.error("[STRIPE WEBHOOK] Missing member_id or payment_intent in session:", session.id);
-    return new Response("OK", { status: 200 }); // 200 so Stripe doesn't retry
-  }
+    // Fetch payment intent to get receipt URL from the underlying charge
+    let receiptUrl = null;
+    const piRes = await fetch(
+      `https://api.stripe.com/v1/payment_intents/${paymentIntentId}?expand[]=latest_charge`,
+      { headers: { "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}` } }
+    );
+    if (piRes.ok) {
+      const pi = await piRes.json();
+      receiptUrl = pi.latest_charge?.receipt_url || null;
+    } else {
+      console.warn("[STRIPE WEBHOOK] Could not fetch payment intent:", await piRes.text());
+    }
 
-  // Fetch payment intent to get receipt URL from the underlying charge
-  let receiptUrl = null;
-  const piRes = await fetch(
-    `https://api.stripe.com/v1/payment_intents/${paymentIntentId}?expand[]=latest_charge`,
-    { headers: { "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}` } }
-  );
-  if (piRes.ok) {
-    const pi = await piRes.json();
-    receiptUrl = pi.latest_charge?.receipt_url || null;
-  } else {
-    console.warn("[STRIPE WEBHOOK] Could not fetch payment intent:", await piRes.text());
-  }
-
-  // Write donation to Supabase
-  const sbHeaders = {
-    "Content-Type":  "application/json",
-    "apikey":        env.SUPABASE_KEY,
-    "Authorization": `Bearer ${env.SUPABASE_KEY}`,
-    "Prefer":        "return=minimal",
-  };
-
-  const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/donations`, {
-    method:  "POST",
-    headers: sbHeaders,
-    body: JSON.stringify({
+    return await insertDonation(env, {
       member_id:      memberId,
       amount:         amountTotal,
       type:           "one-time",
       receipt_url:    receiptUrl,
       transaction_id: paymentIntentId,
-    }),
-  });
-
-  if (!insertRes.ok) {
-    const errText = await insertRes.text();
-    console.error("[STRIPE WEBHOOK] Supabase insert error:", insertRes.status, errText);
-    return new Response("Supabase error", { status: 500 }); // 500 = Stripe will retry
+    });
   }
 
-  console.log("[STRIPE WEBHOOK] Donation saved — member:", memberId, "amount:", amountTotal, "receipt:", receiptUrl);
+  // ── recurring subscription charge ─────────────────────────────────────────
+  if (event.type === "invoice.paid") {
+    const invoice = event.data.object;
+
+    // Only automatic subscription charges — skip manual invoices
+    if (invoice.collection_method !== "charge_automatically") {
+      return new Response("OK", { status: 200 });
+    }
+
+    const email           = invoice.customer_email;
+    const amountTotal     = invoice.amount_paid; // cents
+    const receiptUrl      = invoice.invoice_pdf || null;
+    const transactionId   = invoice.payment_intent; // unique per charge
+
+    if (!email || !transactionId) {
+      console.warn("[STRIPE WEBHOOK] invoice.paid missing email or payment_intent:", invoice.id);
+      return new Response("OK", { status: 200 });
+    }
+
+    // Look up member_id by email from member_profiles
+    const profileRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/member_profiles?email=eq.${encodeURIComponent(email)}&select=member_id&limit=1`,
+      { headers: { "apikey": env.SUPABASE_KEY, "Authorization": `Bearer ${env.SUPABASE_KEY}` } }
+    );
+    const profiles = profileRes.ok ? await profileRes.json() : [];
+    const memberId = profiles[0]?.member_id;
+
+    if (!memberId) {
+      console.warn("[STRIPE WEBHOOK] No member found for email:", email);
+      return new Response("OK", { status: 200 }); // not retrying — no match
+    }
+
+    return await insertDonation(env, {
+      member_id:        memberId,
+      amount:           amountTotal,
+      type:             "subscription",
+      receipt_url:      receiptUrl,
+      transaction_id:   transactionId,
+      recurrent_status: "paid",
+    });
+  }
+
+  // Acknowledge all other event types
   return new Response("OK", { status: 200 });
 }
 
