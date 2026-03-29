@@ -25,11 +25,6 @@ const PLAN_IDS = {
   rejected:    "pln_rejected-fo1l60nm3",
 };
 
-const PAID_PLAN_NAMES = new Set([
-  "neighbor", "supporter", "advocate", "builder",
-  "sustainer", "patron", "partner", "champion", "visionary",
-]);
-
 // Maps application_status → Memberstack plan ID (free plans only)
 // Paid plan changes flow through Stripe checkout → Memberstack → webhook → Supabase
 const STATUS_TO_PLAN_ID = {
@@ -63,31 +58,6 @@ function parsePlanConnections(connections) {
   }));
 }
 
-// Derives application_status + subscription_plan from a member's full planConnections.
-// Priority: frozen → admin → paid tier → approved (active) → facilitator-only → rejected → pending
-function resolveStatusFromConnections(connections) {
-  const hasFrozen      = connections.some(c => c.planId === PLAN_IDS.frozen);
-  const hasAdmin       = connections.some(c => c.planId === PLAN_IDS.admin);
-  const hasFacilitator = connections.some(c => c.planId === PLAN_IDS.facilitator);
-  const hasActive      = connections.some(c => c.planId === PLAN_IDS.active);
-  const hasRejected    = connections.some(c => c.planId === PLAN_IDS.rejected);
-  const hasPending     = connections.some(c => c.planId === PLAN_IDS.pending);
-  const paidPlan       = connections.find(c =>
-    c.type === "paid" || PAID_PLAN_NAMES.has((c.planName || "").toLowerCase())
-  );
-
-  if (hasFrozen)      return { application_status: "frozen",                    subscription_plan: null };
-  if (hasAdmin)       return { application_status: "admin",                     subscription_plan: null };
-  if (paidPlan) {
-    const name = (paidPlan.planName || "").toLowerCase();
-    return           { application_status: name,                                subscription_plan: name };
-  }
-  if (hasActive)      return { application_status: "approved",                  subscription_plan: null };
-  if (hasFacilitator) return { application_status: "facilitator",               subscription_plan: null };
-  if (hasRejected)    return { application_status: "rejected",                  subscription_plan: null };
-  if (hasPending)     return { application_status: "pending",                   subscription_plan: null };
-  return                     { application_status: null,                        subscription_plan: null };
-}
 
 const QUESTIONNAIRE_FIELDS = [
   "where_are_you_on_your_path",
@@ -1057,12 +1027,31 @@ async function handleFacilitatorCheckin(payload, env) {
 
 // ─── Memberstack plan sync (webhook from Memberstack on plan add/remove) ─────
 async function handleMemberstackPlanSync(request, env) {
-  // Verify signature — Memberstack signs with HMAC-SHA256 of raw body
-  const signature = request.headers.get("x-memberstack-signature");
-  if (!signature) return new Response("Unauthorized", { status: 401 });
+  // Verify signature — Memberstack uses Svix for webhook delivery
+  // Svix signs: "<svix-id>.<svix-timestamp>.<rawBody>" with HMAC-SHA256
+  // Secret is base64-encoded (whsec_... format); signature header is "v1,<base64_hmac>"
+  const svixId        = request.headers.get("svix-id");
+  const svixTimestamp = request.headers.get("svix-timestamp");
+  const svixSignature = request.headers.get("svix-signature");
+  if (!svixId || !svixTimestamp || !svixSignature) {
+    return new Response("Unauthorized", { status: 401 });
+  }
 
   const rawBody = await request.text();
-  if (signature !== env.MEMBERSTACK_WEBHOOK_SECRET) {
+
+  const secret = env.MEMBERSTACK_WEBHOOK_SECRET.startsWith("whsec_")
+    ? env.MEMBERSTACK_WEBHOOK_SECRET.slice(6)
+    : env.MEMBERSTACK_WEBHOOK_SECRET;
+  const secretBytes = Uint8Array.from(atob(secret), c => c.charCodeAt(0));
+  const signedContent = `${svixId}.${svixTimestamp}.${rawBody}`;
+  const key = await crypto.subtle.importKey(
+    "raw", secretBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(signedContent));
+  const computedSig = btoa(String.fromCharCode(...new Uint8Array(mac)));
+  const expectedSigs = svixSignature.split(" ").map(s => s.replace(/^v\d+,/, ""));
+  if (!expectedSigs.includes(computedSig)) {
+    console.log(`[PLAN SYNC] Svix signature mismatch`);
     return new Response("Unauthorized", { status: 401 });
   }
 
@@ -1076,19 +1065,32 @@ async function handleMemberstackPlanSync(request, env) {
     });
   }
 
-  const member     = body.data || {};
-  const memberId   = member.id;
+  const member   = body.payload?.member || {};
+  const memberId = member.id;
   if (!memberId) return new Response("member id missing", { status: 400 });
 
-  const connections = parsePlanConnections(member.planConnections || []);
-  const { application_status, subscription_plan } = resolveStatusFromConnections(connections);
-
-  if (!application_status) {
-    console.log(`[PLAN SYNC] No resolvable status for ${memberId} — skipping`);
-    return new Response(JSON.stringify({ ok: true, skipped: "no status" }), {
-      status: 200, headers: { "Content-Type": "application/json" },
-    });
+  // Fetch full member from Memberstack API to get all planConnections with names
+  const msRes = await fetch(
+    `https://admin.memberstack.com/members/${encodeURIComponent(memberId)}`,
+    { headers: { "x-api-key": env.MEMBERSTACK_KEY } }
+  );
+  if (!msRes.ok) {
+    console.error(`[PLAN SYNC] Memberstack fetch failed: ${msRes.status}`);
+    return new Response("Memberstack fetch failed", { status: 502 });
   }
+  const msData    = await msRes.json();
+  const freePlanIds = new Set(Object.values(PLAN_IDS));
+  const allPlans    = msData?.data?.planConnections || msData?.planConnections || [];
+
+  // Find the active paid plan — use c.active (boolean) as the source of truth
+  const paidPlan = allPlans.find(c => {
+    if (freePlanIds.has(c.planId)) return false;
+    return c.active === true;
+  });
+
+  const subscription_plan = paidPlan
+    ? (paidPlan.plan?.name || paidPlan.planName || "").toLowerCase() || null
+    : null;
 
   const sbRes = await fetch(
     `${SUPABASE_URL}/rest/v1/member_profiles?member_id=eq.${encodeURIComponent(memberId)}`,
@@ -1100,7 +1102,7 @@ async function handleMemberstackPlanSync(request, env) {
         "Content-Type":  "application/json",
         "Prefer":        "return=minimal",
       },
-      body: JSON.stringify({ application_status, subscription_plan }),
+      body: JSON.stringify({ subscription_plan }),
     }
   );
   if (!sbRes.ok) {
@@ -1108,8 +1110,8 @@ async function handleMemberstackPlanSync(request, env) {
     throw new Error(`Supabase PATCH error (${sbRes.status}): ${err}`);
   }
 
-  console.log(`[PLAN SYNC] ${memberId} → ${application_status} / ${subscription_plan ?? "null"}`);
-  return new Response(JSON.stringify({ ok: true, application_status, subscription_plan }), {
+  console.log(`[PLAN SYNC] ${memberId} → subscription_plan: ${subscription_plan ?? "null"}`);
+  return new Response(JSON.stringify({ ok: true, subscription_plan }), {
     status: 200, headers: { "Content-Type": "application/json" },
   });
 }

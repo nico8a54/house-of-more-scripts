@@ -443,7 +443,6 @@
       });
     }
 
-    const PAY_PLANS = new Set(["advocate","builder","champion","neighbor","partner","patron","supporter","sustainer","visionary"]);
 
     function updateFacilitatorMenu(data) {
       hide(ui.facilitatorMenu);
@@ -455,12 +454,7 @@
     function updateCancelPlan(data) {
       const cancelPlanEl = document.querySelector(".cancel-plan");
       if (!cancelPlanEl) return;
-      const hasActivePayPlan = Array.isArray(data?.plan_name) && data.plan_name.some(plan => {
-        if (!PAY_PLANS.has(String(plan?.planName || "").toLowerCase())) return false;
-        const status = String(plan?.status || "").toLowerCase();
-        return status !== "canceled" && status !== "cancelled";
-      });
-      cancelPlanEl.classList.toggle("hide", !hasActivePayPlan);
+      cancelPlanEl.classList.toggle("hide", !data.subscription_plan);
     }
 
 function renderFields(data) {
