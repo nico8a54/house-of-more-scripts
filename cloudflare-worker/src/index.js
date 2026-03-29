@@ -2360,6 +2360,76 @@ function build2hReminderEmail(firstName, eventName, eventDateISO, locationOrLink
 </table>`;
 }
 
+// ─── Review: fetch member + event names ──────────────────────────────────────
+async function handleReviewData(payload, env) {
+  const { profile_record_id, event_record_id } = payload;
+  if (!profile_record_id || !event_record_id) throw new Error("profile_record_id and event_record_id required");
+
+  const sbHeaders = {
+    "apikey":        env.SUPABASE_KEY,
+    "Authorization": `Bearer ${env.SUPABASE_KEY}`,
+  };
+
+  const [memberRes, rsvpRes] = await Promise.all([
+    fetch(`${SUPABASE_URL}/rest/v1/member_profiles?id=eq.${encodeURIComponent(profile_record_id)}&select=first_name&limit=1`, { headers: sbHeaders }),
+    fetch(`${SUPABASE_URL}/rest/v1/event_rsvps?id=eq.${encodeURIComponent(event_record_id)}&select=events(event_name)&limit=1`, { headers: sbHeaders }),
+  ]);
+
+  const members = memberRes.ok ? await memberRes.json() : [];
+  const rsvps   = rsvpRes.ok  ? await rsvpRes.json()   : [];
+
+  const member_name = members[0]?.first_name   || null;
+  const event_name  = rsvps[0]?.events?.event_name || null;
+
+  return { member_name, event_name };
+}
+
+// ─── Review: write rating + review to event_rsvps ────────────────────────────
+async function handleSubmitReview(payload, env) {
+  const { event_record_id, member_email, rating, message } = payload;
+  if (!event_record_id) throw new Error("event_record_id required");
+
+  const sbHeaders = {
+    "apikey":        env.SUPABASE_KEY,
+    "Authorization": `Bearer ${env.SUPABASE_KEY}`,
+    "Content-Type":  "application/json",
+  };
+
+  // Verify the RSVP belongs to this email
+  const rsvpRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/event_rsvps?id=eq.${encodeURIComponent(event_record_id)}&select=member_id&limit=1`,
+    { headers: sbHeaders }
+  );
+  if (!rsvpRes.ok) throw new Error(`RSVP lookup failed (${rsvpRes.status})`);
+  const rsvps = await rsvpRes.json();
+  if (!rsvps.length) throw new Error("RSVP not found");
+
+  const memberId  = rsvps[0].member_id;
+  const profileRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/member_profiles?member_id=eq.${encodeURIComponent(memberId)}&select=email&limit=1`,
+    { headers: sbHeaders }
+  );
+  if (profileRes.ok) {
+    const profiles = await profileRes.json();
+    if (profiles.length && profiles[0].email !== member_email) {
+      throw new Error("Unauthorized");
+    }
+  }
+
+  const patchRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/event_rsvps?id=eq.${encodeURIComponent(event_record_id)}`,
+    {
+      method:  "PATCH",
+      headers: { ...sbHeaders, "Prefer": "return=minimal" },
+      body:    JSON.stringify({ rating: rating || null, review: message || null }),
+    }
+  );
+  if (!patchRes.ok) {
+    const err = await patchRes.text();
+    throw new Error(`RSVP patch failed (${patchRes.status}): ${err}`);
+  }
+}
+
 // ─── CORS helper ─────────────────────────────────────────────────────────────
 function corsHeaders(origin, env) {
   const allowed = env.ALLOWED_ORIGIN || "https://www.thehouseofmore.com";
@@ -2783,6 +2853,44 @@ export default {
       } catch (err) {
         console.error(err);
         return new Response("Internal error", { status: 500 });
+      }
+    }
+
+    // Review data — fetch member + event names for review modal
+    if (path === "/review-data") {
+      if (!env.SUPABASE_KEY) return new Response("Server misconfiguration", { status: 500 });
+      let payload;
+      try { payload = await request.json(); } catch { return new Response("Bad request", { status: 400 }); }
+      try {
+        const data = await handleReviewData(payload, env);
+        return new Response(JSON.stringify(data), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      }
+    }
+
+    // Submit review — write rating + review to event_rsvps
+    if (path === "/submit-review") {
+      if (!env.SUPABASE_KEY) return new Response("Server misconfiguration", { status: 500 });
+      let payload;
+      try { payload = await request.json(); } catch { return new Response("Bad request", { status: 400 }); }
+      try {
+        await handleSubmitReview(payload, env);
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
+      } catch (err) {
+        console.error(err);
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500, headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
+        });
       }
     }
 
