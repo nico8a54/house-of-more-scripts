@@ -1713,6 +1713,260 @@ async function handleStripeWebhook(request, env) {
   return new Response("OK", { status: 200 });
 }
 
+// ─── Event reminders (cron — hourly) ─────────────────────────────────────────
+async function handleEventReminders(env) {
+  const sbHeaders = {
+    "apikey":        env.SUPABASE_KEY,
+    "Authorization": `Bearer ${env.SUPABASE_KEY}`,
+    "Content-Type":  "application/json",
+  };
+
+  const now         = new Date();
+  const windowStart = new Date(now.getTime() + 23 * 60 * 60 * 1000).toISOString();
+  const windowEnd   = new Date(now.getTime() + 25 * 60 * 60 * 1000).toISOString();
+
+  // Events starting in [now+23h, now+25h] that haven't had a reminder sent yet
+  const eventsRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/events?event_date=gte.${windowStart}&event_date=lte.${windowEnd}&reminder_sent_at=is.null&select=id,event_name,event_date,event_location,event_link,facilitator_name,event_slug`,
+    { headers: sbHeaders }
+  );
+  if (!eventsRes.ok) {
+    console.error("[REMINDER] Supabase events fetch failed:", eventsRes.status);
+    return;
+  }
+  const events = await eventsRes.json();
+  if (!events.length) {
+    console.log("[REMINDER] No events in reminder window");
+    return;
+  }
+
+  for (const event of events) {
+    // Fetch all booked RSVPs for this event
+    const rsvpsRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/event_rsvps?event_id=eq.${encodeURIComponent(event.id)}&booking_status=eq.booked&select=member_id`,
+      { headers: sbHeaders }
+    );
+    if (!rsvpsRes.ok) {
+      console.error(`[REMINDER] RSVPs fetch failed for event ${event.id}:`, rsvpsRes.status);
+      continue;
+    }
+    const rsvps = await rsvpsRes.json();
+
+    // Always mark reminder sent — even if no RSVPs — to avoid re-processing
+    const markRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/events?id=eq.${encodeURIComponent(event.id)}`,
+      {
+        method:  "PATCH",
+        headers: { ...sbHeaders, "Prefer": "return=minimal" },
+        body:    JSON.stringify({ reminder_sent_at: new Date().toISOString() }),
+      }
+    );
+    if (!markRes.ok) console.error(`[REMINDER] Failed to mark reminder_sent_at for ${event.id}`);
+
+    if (!rsvps.length) {
+      console.log(`[REMINDER] No booked RSVPs for "${event.event_name}"`);
+      continue;
+    }
+
+    // Batch-fetch member profiles
+    const memberIds  = [...new Set(rsvps.map(r => r.member_id).filter(Boolean))];
+    const inClause   = memberIds.join(",");
+    const membersRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/member_profiles?member_id=in.(${inClause})&select=member_id,first_name,email`,
+      { headers: sbHeaders }
+    );
+    const members   = membersRes.ok ? await membersRes.json() : [];
+    const memberMap = Object.fromEntries(members.map(m => [m.member_id, m]));
+
+    const locationOrLink = event.event_link || event.event_location || "TBD";
+
+    let sentCount = 0;
+    for (const rsvp of rsvps) {
+      const member = memberMap[rsvp.member_id];
+      if (!member?.email) continue;
+
+      const subject = `Reminder — ${event.event_name} is tomorrow`;
+      const html = buildReminderEmail(
+        member.first_name,
+        event.event_name,
+        event.event_date,
+        locationOrLink,
+      );
+
+      const emailRes = await fetch("https://api.resend.com/emails", {
+        method:  "POST",
+        headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from: "events@thehouseofmore.com", to: member.email, subject, html }),
+      });
+
+      if (emailRes.ok) {
+        sentCount++;
+      } else {
+        const errText = await emailRes.text();
+        console.error(`[REMINDER] Email failed for ${member.email}:`, errText);
+      }
+    }
+
+    console.log(`[REMINDER] Sent ${sentCount}/${rsvps.length} reminders for "${event.event_name}"`);
+  }
+}
+
+function buildReminderEmail(firstName, eventName, eventDateISO, locationOrLink) {
+  const d = eventDateISO ? new Date(eventDateISO) : null;
+  const TZ = "America/New_York";
+  const dateStr = d ? d.toLocaleDateString("en-US",  { month: "long", day: "numeric", year: "numeric", timeZone: TZ }) : "TBD";
+  const timeStr = d ? d.toLocaleTimeString("en-US",  { hour: "numeric", minute: "2-digit", hour12: true, timeZone: TZ }) : "TBD";
+
+  return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f2f2f2; padding:40px 0;">
+  <tr>
+    <td align="center">
+
+      <table width="500" cellpadding="0" cellspacing="0" border="0" align="center"
+        style="background-color:#ffffff; border-radius:10px; overflow:hidden;">
+
+        <!-- Top Header -->
+        <tr>
+          <td align="center" style="background-color:#2b1f14; padding:24px 40px;">
+            <div style="font-family:Georgia, serif; font-size:22px; color:#ffffff; letter-spacing:1px;">
+              THE HOUSE OF MORE
+            </div>
+            <a href="https://thehouseofmore.com"
+               style="color:#946a49 !important; text-decoration:none;">
+               thehouseofmore.com
+            </a>
+          </td>
+        </tr>
+
+        <!-- Spacer -->
+        <tr>
+          <td style="height:36px;"></td>
+        </tr>
+
+        <!-- Section Label -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; letter-spacing:2px; color:#8c7a64;">
+              24-HOUR REMINDER
+            </div>
+          </td>
+        </tr>
+
+        <!-- Spacer -->
+        <tr>
+          <td style="height:14px;"></td>
+        </tr>
+
+        <!-- Main Title -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:26px; color:#2b2b2b; line-height:34px;">
+              ${eventName} is tomorrow.
+            </div>
+          </td>
+        </tr>
+
+        <!-- Spacer -->
+        <tr>
+          <td style="height:20px;"></td>
+        </tr>
+
+        <!-- Body Text -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#5c5c5c; line-height:22px;">
+              Dear ${firstName},
+              <br><br>
+              Just a gentle reminder that you're registered for <strong>${eventName}</strong> tomorrow.
+              We're looking forward to sharing this experience with you.
+            </div>
+          </td>
+        </tr>
+
+        <!-- Spacer -->
+        <tr>
+          <td style="height:30px;"></td>
+        </tr>
+
+        <!-- Event Info Box -->
+        <tr>
+          <td style="padding:0 50px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0"
+              style="background-color:#f7f3ed; border-radius:6px;">
+              <tr>
+                <td style="padding:20px 24px; font-family:Arial, sans-serif; font-size:14px; color:#2b2b2b; line-height:22px;">
+                  <strong>Date:</strong> ${dateStr}<br>
+                  <strong>Time:</strong> ${timeStr}<br>
+                  <strong>Location:</strong> ${locationOrLink}
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Spacer -->
+        <tr>
+          <td style="height:36px;"></td>
+        </tr>
+
+        <!-- Divider -->
+        <tr>
+          <td style="padding:0 50px;">
+            <hr style="border:none; border-top:1px solid #e5ded4;">
+          </td>
+        </tr>
+
+        <!-- Spacer -->
+        <tr>
+          <td style="height:20px;"></td>
+        </tr>
+
+        <!-- Footer Message -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:16px; color:#6f5c46; font-style:italic; line-height:24px;">
+              If anything has changed and you need to cancel, you can still do so through your member portal up to 2 hours before the event begins.
+            </div>
+          </td>
+        </tr>
+
+        <!-- Spacer -->
+        <tr>
+          <td style="height:30px;"></td>
+        </tr>
+
+        <!-- Closing -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#2b2b2b; line-height:22px;">
+              Come ready to be present. That's all we ask.
+              <br><br>
+              <em>See you tomorrow,</em><br>
+              <strong>The House of More Team</strong>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Spacer -->
+        <tr>
+          <td style="height:48px;"></td>
+        </tr>
+
+        <!-- Bottom Footer -->
+        <tr>
+          <td align="center" style="background-color:#f7f3ed; padding:18px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; color:#8c7a64;">
+              © House of More 2026
+            </div>
+          </td>
+        </tr>
+
+      </table>
+
+    </td>
+  </tr>
+</table>`;
+}
+
 // ─── CORS helper ─────────────────────────────────────────────────────────────
 function corsHeaders(origin, env) {
   const allowed = env.ALLOWED_ORIGIN || "https://www.thehouseofmore.com";
@@ -1729,6 +1983,10 @@ function corsHeaders(origin, env) {
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
 export default {
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(handleEventReminders(env));
+  },
+
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
