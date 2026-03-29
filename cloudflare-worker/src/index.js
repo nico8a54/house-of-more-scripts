@@ -1725,6 +1725,7 @@ async function handleEventReminders(env) {
   await sendReminderBatch(env, sbHeaders, now, 23, 25, "reminder_sent_at",    "24h");
   await sendReminderBatch(env, sbHeaders, now,  1,  3, "reminder_2h_sent_at", "2h");
   await sendReviewRequestBatch(env, sbHeaders, now);
+  await processNoShows(sbHeaders, now);
 }
 
 async function sendReminderBatch(env, sbHeaders, now, hoursMin, hoursMax, flagField, type) {
@@ -1967,6 +1968,82 @@ function buildReminderEmail(firstName, eventName, eventDateISO, locationOrLink) 
     </td>
   </tr>
 </table>`;
+}
+
+async function processNoShows(sbHeaders, now) {
+  // Events that ended 24h ago (±1h window)
+  const windowStart = new Date(now.getTime() - 25 * 3600000).toISOString();
+  const windowEnd   = new Date(now.getTime() - 23 * 3600000).toISOString();
+
+  const eventsRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/events?event_date=gte.${windowStart}&event_date=lte.${windowEnd}&no_show_processed_at=is.null&select=id,event_name`,
+    { headers: sbHeaders }
+  );
+  if (!eventsRes.ok) {
+    console.error("[NO-SHOW] Supabase events fetch failed:", eventsRes.status);
+    return;
+  }
+  const events = await eventsRes.json();
+  if (!events.length) {
+    console.log("[NO-SHOW] No events to process");
+    return;
+  }
+
+  for (const event of events) {
+    // 1. Close the event
+    const closeRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/events?id=eq.${encodeURIComponent(event.id)}`,
+      {
+        method:  "PATCH",
+        headers: { ...sbHeaders, "Prefer": "return=minimal" },
+        body:    JSON.stringify({ event_status: "closed", no_show_processed_at: new Date().toISOString() }),
+      }
+    );
+    if (!closeRes.ok) console.error(`[NO-SHOW] Failed to close event ${event.id}`);
+
+    // 2. Find RSVPs still "booked" (not checked, not canceled)
+    const rsvpsRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/event_rsvps?event_id=eq.${encodeURIComponent(event.id)}&booking_status=eq.booked&select=id,member_id`,
+      { headers: sbHeaders }
+    );
+    if (!rsvpsRes.ok) {
+      console.error(`[NO-SHOW] RSVPs fetch failed for event ${event.id}:`, rsvpsRes.status);
+      continue;
+    }
+    const rsvps = await rsvpsRes.json();
+
+    if (!rsvps.length) {
+      console.log(`[NO-SHOW] No no-shows for "${event.event_name}"`);
+      continue;
+    }
+
+    const rsvpIds   = rsvps.map(r => r.id);
+    const memberIds = [...new Set(rsvps.map(r => r.member_id).filter(Boolean))];
+
+    // 3. Mark RSVPs as no-show
+    const rsvpPatchRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/event_rsvps?id=in.(${rsvpIds.join(",")})`,
+      {
+        method:  "PATCH",
+        headers: { ...sbHeaders, "Prefer": "return=minimal" },
+        body:    JSON.stringify({ booking_status: "no-show" }),
+      }
+    );
+    if (!rsvpPatchRes.ok) console.error(`[NO-SHOW] Failed to mark RSVPs no-show for event ${event.id}`);
+
+    // 4. Freeze member profiles — DB webhook cascades to Memberstack
+    const freezeRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/member_profiles?member_id=in.(${memberIds.join(",")})`,
+      {
+        method:  "PATCH",
+        headers: { ...sbHeaders, "Prefer": "return=minimal" },
+        body:    JSON.stringify({ application_status: "frozen", subscription_plan: null }),
+      }
+    );
+    if (!freezeRes.ok) console.error(`[NO-SHOW] Failed to freeze members for event ${event.id}`);
+
+    console.log(`[NO-SHOW] "${event.event_name}" closed — ${rsvps.length} no-show(s) frozen`);
+  }
 }
 
 async function sendReviewRequestBatch(env, sbHeaders, now) {
