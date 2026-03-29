@@ -624,6 +624,25 @@ function renderFields(data) {
       } else {
         planSelect.value = "";
       }
+
+      // Keep data-ms-price:update in sync with the select
+      const PLAN_PRICE_IDS = {
+        neighbor_18:    "prc_neighbor-9d2107s4",
+        supporter_36:   "prc_supporter-l2200758",
+        advocate_54:    "prc_advocate-cs1r05km",
+        builder_100:    "prc_builder-1l2207pl",
+        sustainer_180:  "prc_sustainer-7o1t05pv",
+        patron_360:     "prc_patron-qo24071q",
+        partner_540:    "prc_partner-1n1x05r5",
+        champion_1000:  "prc_champion-fy28079v",
+        visionary_1800: "prc_visionary-iw2005dl",
+      };
+      function syncPriceId() {
+        const priceId = PLAN_PRICE_IDS[planSelect.value] || "";
+        if (recurrentBtn) recurrentBtn.setAttribute("data-ms-price:update", priceId);
+      }
+      planSelect.addEventListener("change", syncPriceId);
+      syncPriceId();
     }
 
     updateFacilitatorMenu(data);
