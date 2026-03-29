@@ -57,7 +57,7 @@ const PAID_PLAN_PRICE_IDS = {
 function parsePlanConnections(connections) {
   return connections.map(c => ({
     planId:   c.planId || "",
-    planName: c.plan?.name || "",
+    planName: c.plan?.name || c.planName || "",
     status:   (c.payment?.status || c.status || "").toLowerCase(),
     type:     (c.type || "").toLowerCase(),
   }));
