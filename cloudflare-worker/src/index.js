@@ -1720,59 +1720,62 @@ async function handleEventReminders(env) {
     "Authorization": `Bearer ${env.SUPABASE_KEY}`,
     "Content-Type":  "application/json",
   };
+  const now = new Date();
 
-  const now         = new Date();
-  const windowStart = new Date(now.getTime() + 23 * 60 * 60 * 1000).toISOString();
-  const windowEnd   = new Date(now.getTime() + 25 * 60 * 60 * 1000).toISOString();
+  await sendReminderBatch(env, sbHeaders, now, 23, 25, "reminder_sent_at",    "24h");
+  await sendReminderBatch(env, sbHeaders, now,  1,  3, "reminder_2h_sent_at", "2h");
+}
 
-  // Events starting in [now+23h, now+25h] that haven't had a reminder sent yet
+async function sendReminderBatch(env, sbHeaders, now, hoursMin, hoursMax, flagField, type) {
+  const windowStart = new Date(now.getTime() + hoursMin * 3600000).toISOString();
+  const windowEnd   = new Date(now.getTime() + hoursMax * 3600000).toISOString();
+
   const eventsRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/events?event_date=gte.${windowStart}&event_date=lte.${windowEnd}&reminder_sent_at=is.null&select=id,event_name,event_date,event_location,event_link,facilitator_name,event_slug`,
+    `${SUPABASE_URL}/rest/v1/events?event_date=gte.${windowStart}&event_date=lte.${windowEnd}&${flagField}=is.null&select=id,event_name,event_date,event_location,event_link,event_slug`,
     { headers: sbHeaders }
   );
   if (!eventsRes.ok) {
-    console.error("[REMINDER] Supabase events fetch failed:", eventsRes.status);
+    console.error(`[REMINDER ${type}] Supabase events fetch failed:`, eventsRes.status);
     return;
   }
   const events = await eventsRes.json();
   if (!events.length) {
-    console.log("[REMINDER] No events in reminder window");
+    console.log(`[REMINDER ${type}] No events in window`);
     return;
   }
 
   for (const event of events) {
-    // Fetch all booked RSVPs for this event
+    // Fetch all booked RSVPs
     const rsvpsRes = await fetch(
       `${SUPABASE_URL}/rest/v1/event_rsvps?event_id=eq.${encodeURIComponent(event.id)}&booking_status=eq.booked&select=member_id`,
       { headers: sbHeaders }
     );
     if (!rsvpsRes.ok) {
-      console.error(`[REMINDER] RSVPs fetch failed for event ${event.id}:`, rsvpsRes.status);
+      console.error(`[REMINDER ${type}] RSVPs fetch failed for event ${event.id}:`, rsvpsRes.status);
       continue;
     }
     const rsvps = await rsvpsRes.json();
 
-    // Always mark reminder sent — even if no RSVPs — to avoid re-processing
+    // Mark flag — always, even with zero RSVPs, to avoid re-processing
     const markRes = await fetch(
       `${SUPABASE_URL}/rest/v1/events?id=eq.${encodeURIComponent(event.id)}`,
       {
         method:  "PATCH",
         headers: { ...sbHeaders, "Prefer": "return=minimal" },
-        body:    JSON.stringify({ reminder_sent_at: new Date().toISOString() }),
+        body:    JSON.stringify({ [flagField]: new Date().toISOString() }),
       }
     );
-    if (!markRes.ok) console.error(`[REMINDER] Failed to mark reminder_sent_at for ${event.id}`);
+    if (!markRes.ok) console.error(`[REMINDER ${type}] Failed to mark ${flagField} for ${event.id}`);
 
     if (!rsvps.length) {
-      console.log(`[REMINDER] No booked RSVPs for "${event.event_name}"`);
+      console.log(`[REMINDER ${type}] No booked RSVPs for "${event.event_name}"`);
       continue;
     }
 
     // Batch-fetch member profiles
     const memberIds  = [...new Set(rsvps.map(r => r.member_id).filter(Boolean))];
-    const inClause   = memberIds.join(",");
     const membersRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/member_profiles?member_id=in.(${inClause})&select=member_id,first_name,email`,
+      `${SUPABASE_URL}/rest/v1/member_profiles?member_id=in.(${memberIds.join(",")})&select=member_id,first_name,email`,
       { headers: sbHeaders }
     );
     const members   = membersRes.ok ? await membersRes.json() : [];
@@ -1785,13 +1788,12 @@ async function handleEventReminders(env) {
       const member = memberMap[rsvp.member_id];
       if (!member?.email) continue;
 
-      const subject = `Reminder — ${event.event_name} is tomorrow`;
-      const html = buildReminderEmail(
-        member.first_name,
-        event.event_name,
-        event.event_date,
-        locationOrLink,
-      );
+      const subject = type === "24h"
+        ? `Reminder — ${event.event_name} is tomorrow`
+        : `Starting in 2 hours — ${event.event_name}`;
+      const html = type === "24h"
+        ? buildReminderEmail(member.first_name, event.event_name, event.event_date, locationOrLink)
+        : build2hReminderEmail(member.first_name, event.event_name, event.event_date, locationOrLink);
 
       const emailRes = await fetch("https://api.resend.com/emails", {
         method:  "POST",
@@ -1802,12 +1804,11 @@ async function handleEventReminders(env) {
       if (emailRes.ok) {
         sentCount++;
       } else {
-        const errText = await emailRes.text();
-        console.error(`[REMINDER] Email failed for ${member.email}:`, errText);
+        console.error(`[REMINDER ${type}] Email failed for ${member.email}:`, await emailRes.text());
       }
     }
 
-    console.log(`[REMINDER] Sent ${sentCount}/${rsvps.length} reminders for "${event.event_name}"`);
+    console.log(`[REMINDER ${type}] Sent ${sentCount}/${rsvps.length} for "${event.event_name}"`);
   }
 }
 
@@ -1950,6 +1951,124 @@ function buildReminderEmail(firstName, eventName, eventDateISO, locationOrLink) 
         <tr>
           <td style="height:48px;"></td>
         </tr>
+
+        <!-- Bottom Footer -->
+        <tr>
+          <td align="center" style="background-color:#f7f3ed; padding:18px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; color:#8c7a64;">
+              © House of More 2026
+            </div>
+          </td>
+        </tr>
+
+      </table>
+
+    </td>
+  </tr>
+</table>`;
+}
+
+function build2hReminderEmail(firstName, eventName, eventDateISO, locationOrLink) {
+  const d = eventDateISO ? new Date(eventDateISO) : null;
+  const TZ = "America/New_York";
+  const timeStr = d ? d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: TZ }) : "TBD";
+
+  return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f2f2f2; padding:40px 0;">
+  <tr>
+    <td align="center">
+
+      <table width="500" cellpadding="0" cellspacing="0" border="0" align="center"
+        style="background-color:#ffffff; border-radius:10px; overflow:hidden;">
+
+        <!-- Top Header -->
+        <tr>
+          <td align="center" style="background-color:#2b1f14; padding:24px 40px;">
+            <div style="font-family:Georgia, serif; font-size:22px; color:#ffffff; letter-spacing:1px;">
+              THE HOUSE OF MORE
+            </div>
+            <a href="https://thehouseofmore.com"
+               style="color:#946a49 !important; text-decoration:none;">
+               thehouseofmore.com
+            </a>
+          </td>
+        </tr>
+
+        <tr><td style="height:36px;"></td></tr>
+
+        <!-- Section Label -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; letter-spacing:2px; color:#8c7a64;">
+              2-HOUR REMINDER
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:14px;"></td></tr>
+
+        <!-- Main Title -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:26px; color:#2b2b2b; line-height:34px;">
+              It's almost time.
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:20px;"></td></tr>
+
+        <!-- Body Text -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#5c5c5c; line-height:22px;">
+              Dear ${firstName},
+              <br><br>
+              <strong>${eventName}</strong> starts in 2 hours at ${timeStr}.
+              We're looking forward to seeing you there.
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:30px;"></td></tr>
+
+        <!-- Event Info Box -->
+        <tr>
+          <td style="padding:0 50px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0"
+              style="background-color:#f7f3ed; border-radius:6px;">
+              <tr>
+                <td style="padding:20px 24px; font-family:Arial, sans-serif; font-size:14px; color:#2b2b2b; line-height:22px;">
+                  <strong>Time:</strong> ${timeStr}<br>
+                  <strong>Location:</strong> ${locationOrLink}
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr><td style="height:36px;"></td></tr>
+
+        <tr>
+          <td style="padding:0 50px;">
+            <hr style="border:none; border-top:1px solid #e5ded4;">
+          </td>
+        </tr>
+
+        <tr><td style="height:20px;"></td></tr>
+
+        <!-- Closing -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#2b2b2b; line-height:22px;">
+              Come ready to be present. That's all we ask.
+              <br><br>
+              <em>See you soon,</em><br>
+              <strong>The House of More Team</strong>
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:48px;"></td></tr>
 
         <!-- Bottom Footer -->
         <tr>
