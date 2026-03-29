@@ -1724,6 +1724,7 @@ async function handleEventReminders(env) {
 
   await sendReminderBatch(env, sbHeaders, now, 23, 25, "reminder_sent_at",    "24h");
   await sendReminderBatch(env, sbHeaders, now,  1,  3, "reminder_2h_sent_at", "2h");
+  await sendReviewRequestBatch(env, sbHeaders, now);
 }
 
 async function sendReminderBatch(env, sbHeaders, now, hoursMin, hoursMax, flagField, type) {
@@ -1951,6 +1952,202 @@ function buildReminderEmail(firstName, eventName, eventDateISO, locationOrLink) 
         <tr>
           <td style="height:48px;"></td>
         </tr>
+
+        <!-- Bottom Footer -->
+        <tr>
+          <td align="center" style="background-color:#f7f3ed; padding:18px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; color:#8c7a64;">
+              © House of More 2026
+            </div>
+          </td>
+        </tr>
+
+      </table>
+
+    </td>
+  </tr>
+</table>`;
+}
+
+async function sendReviewRequestBatch(env, sbHeaders, now) {
+  // Events that ended 7 days ago (±1h window)
+  const windowStart = new Date(now.getTime() - 169 * 3600000).toISOString();
+  const windowEnd   = new Date(now.getTime() - 167 * 3600000).toISOString();
+
+  const eventsRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/events?event_date=gte.${windowStart}&event_date=lte.${windowEnd}&review_request_sent_at=is.null&select=id,event_name,event_date,event_slug`,
+    { headers: sbHeaders }
+  );
+  if (!eventsRes.ok) {
+    console.error("[REVIEW] Supabase events fetch failed:", eventsRes.status);
+    return;
+  }
+  const events = await eventsRes.json();
+  if (!events.length) {
+    console.log("[REVIEW] No events in 7-day window");
+    return;
+  }
+
+  for (const event of events) {
+    // Fetch booked + checked RSVPs (attended members)
+    const rsvpsRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/event_rsvps?event_id=eq.${encodeURIComponent(event.id)}&booking_status=in.(booked,checked)&select=id,member_id`,
+      { headers: sbHeaders }
+    );
+    if (!rsvpsRes.ok) {
+      console.error(`[REVIEW] RSVPs fetch failed for event ${event.id}:`, rsvpsRes.status);
+      continue;
+    }
+    const rsvps = await rsvpsRes.json();
+
+    // Mark flag — always, to avoid re-processing
+    const markRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/events?id=eq.${encodeURIComponent(event.id)}`,
+      {
+        method:  "PATCH",
+        headers: { ...sbHeaders, "Prefer": "return=minimal" },
+        body:    JSON.stringify({ review_request_sent_at: new Date().toISOString() }),
+      }
+    );
+    if (!markRes.ok) console.error(`[REVIEW] Failed to mark review_request_sent_at for ${event.id}`);
+
+    if (!rsvps.length) {
+      console.log(`[REVIEW] No attended RSVPs for "${event.event_name}"`);
+      continue;
+    }
+
+    // Batch-fetch member profiles (need id + email for CTA URL)
+    const memberIds  = [...new Set(rsvps.map(r => r.member_id).filter(Boolean))];
+    const membersRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/member_profiles?member_id=in.(${memberIds.join(",")})&select=id,member_id,first_name,email`,
+      { headers: sbHeaders }
+    );
+    const members   = membersRes.ok ? await membersRes.json() : [];
+    const memberMap = Object.fromEntries(members.map(m => [m.member_id, m]));
+
+    // Map RSVP id by member_id for the CTA URL
+    const rsvpMap = Object.fromEntries(rsvps.map(r => [r.member_id, r.id]));
+
+    let sentCount = 0;
+    for (const rsvp of rsvps) {
+      const member = memberMap[rsvp.member_id];
+      if (!member?.email) continue;
+
+      const ctaUrl = `https://www.thehouseofmore.com/app/member?profile_record_id=${encodeURIComponent(member.id)}&event_record_id=${encodeURIComponent(rsvpMap[rsvp.member_id])}&member_email=${encodeURIComponent(member.email)}`;
+
+      const subject = `How was ${event.event_name}? Share your experience`;
+      const html    = buildReviewEmail(member.first_name, event.event_name, ctaUrl);
+
+      const emailRes = await fetch("https://api.resend.com/emails", {
+        method:  "POST",
+        headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from: "events@thehouseofmore.com", to: member.email, subject, html }),
+      });
+
+      if (emailRes.ok) {
+        sentCount++;
+      } else {
+        console.error(`[REVIEW] Email failed for ${member.email}:`, await emailRes.text());
+      }
+    }
+
+    console.log(`[REVIEW] Sent ${sentCount}/${rsvps.length} review requests for "${event.event_name}"`);
+  }
+}
+
+function buildReviewEmail(firstName, eventName, ctaUrl) {
+  return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f2f2f2; padding:40px 0;">
+  <tr>
+    <td align="center">
+
+      <table width="500" cellpadding="0" cellspacing="0" border="0" align="center"
+        style="background-color:#ffffff; border-radius:10px; overflow:hidden;">
+
+        <!-- Top Header -->
+        <tr>
+          <td align="center" style="background-color:#2b1f14; padding:24px 40px;">
+            <div style="font-family:Georgia, serif; font-size:22px; color:#ffffff; letter-spacing:1px;">
+              THE HOUSE OF MORE
+            </div>
+            <a href="https://thehouseofmore.com"
+               style="color:#946a49 !important; text-decoration:none !important;">
+               thehouseofmore.com
+            </a>
+          </td>
+        </tr>
+
+        <tr><td style="height:36px;"></td></tr>
+
+        <!-- Section Label -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; letter-spacing:2px; color:#8c7a64;">
+              SHARE YOUR EXPERIENCE
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:14px;"></td></tr>
+
+        <!-- Main Title -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:26px; color:#2b2b2b; line-height:34px;">
+              How was ${eventName}?
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:20px;"></td></tr>
+
+        <!-- Body Text -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#5c5c5c; line-height:22px;">
+              Dear ${firstName},
+              <br><br>
+              Thank you for being part of <strong>${eventName}</strong>. Your presence helps shape the space we create together.
+              <br><br>
+              We would truly value your reflection. It only takes a few minutes and helps us continue refining each gathering with care and intention.
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:30px;"></td></tr>
+
+        <!-- CTA Button -->
+        <tr>
+          <td align="center" style="padding:0 50px;">
+            <a href="${ctaUrl}"
+               style="display:inline-block; background-color:#946a49; color:#ffffff; text-decoration:none; font-family:Arial, sans-serif; font-size:14px; padding:14px 28px; border-radius:4px;">
+               Share Your Experience →
+            </a>
+          </td>
+        </tr>
+
+        <tr><td style="height:36px;"></td></tr>
+
+        <tr>
+          <td style="padding:0 50px;">
+            <hr style="border:none; border-top:1px solid #e5ded4;">
+          </td>
+        </tr>
+
+        <tr><td style="height:20px;"></td></tr>
+
+        <!-- Closing -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#2b2b2b; line-height:22px;">
+              Every response is received with care and gratitude.
+              <br><br>
+              <em>With warmth,</em><br>
+              <strong>The House of More Team</strong>
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:48px;"></td></tr>
 
         <!-- Bottom Footer -->
         <tr>
