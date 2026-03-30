@@ -3,7 +3,7 @@
 //   Section 1 — Tab Navigation       ✅ no external calls
 //   Section 2 — Filter by Status     ✅ no external calls
 //   Section 3 — Add ?admin=true      ✅ no external calls
-//   Section 4 — Donation History     ⏳ Make.com /donation-list-mine
+//   Section 4 — Donation History     ✅ Supabase via /admin-data (donations filtered by member_id)
 //   Section 5 — Message Center       ⏳ Make.com /admin-message-center
 //   Section 6 — Event Manager        ⏳ Make.com /admin-list-rsvp + /admin-messages
 //   Section 7 — Main Render          ⏳ Make.com /admin-list-members, /admin-get-member, /admin-approve-member, /donation-list-all
@@ -125,37 +125,28 @@
   /*=========================================================
     SECTION 4 — MEMBER DONATION HISTORY (LOGGED-IN ADMIN)
     src: admin-fetch-donations.js
+    NOTE: data comes from /admin-data fetched in Section 7
   =========================================================*/
-  document.addEventListener("DOMContentLoaded", async () => {
+  function renderAdminDonations(memberId, allDonations) {
     try {
       const template = document.querySelector(".donation-template:not([data-donation-clone='true'])");
       if (!template) return;
       const container = template.parentElement;
-      const memberIdEl = document.querySelector('[data-ms-member="id"]');
-      if (!memberIdEl) return;
-      const memberId = memberIdEl.textContent.trim();
 
-      const response = await fetch("https://houseofmore.nico-97c.workers.dev/donation-list-mine", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberId })
-      });
-      const records = await response.json();
-      if (!Array.isArray(records) || records.length === 0) return;
+      const records = (allDonations || []).filter(d => d.member_id === memberId);
+      if (records.length === 0) return;
 
-      records.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       template.style.display = "none";
 
       let totalImpact = 0;
       records.forEach(record => {
-        if (!record?.data) return;
         const clone = template.cloneNode(true);
         clone.setAttribute("data-donation-clone", "true");
         clone.style.removeProperty("display");
         const amountEl = clone.querySelector(".donation-amount");
         const typeEl = clone.querySelector(".donation-type");
         const dateEl = clone.querySelector(".donated-at");
-        const amount = (Number(record.data.amount) || 0) / 100;
+        const amount = (Number(record.amount) || 0) / 100;
         totalImpact += amount;
         if (amountEl) {
           amountEl.textContent = "$" + amount.toLocaleString(undefined, {
@@ -163,9 +154,9 @@
             maximumFractionDigits: 2
           });
         }
-        const type = record.data.type || "payment";
+        const type = record.type || "payment";
         if (typeEl) typeEl.textContent = type === "subscription" ? "Monthly" : "One-Time";
-        if (dateEl) dateEl.textContent = new Date(record.createdAt).toLocaleDateString();
+        if (dateEl) dateEl.textContent = new Date(record.created_at).toLocaleDateString();
         container.appendChild(clone);
       });
 
@@ -179,7 +170,7 @@
     } catch (error) {
       console.error("[ADMIN] Donation history error:", error);
     }
-  });
+  }
 
   /*=========================================================
     SECTION 5 — MESSAGE CENTER
@@ -554,6 +545,7 @@
       const { members = [], donations = [], rsvps = [], events = [], adminMessages = [] } = adminData;
       adminRsvps = rsvps;
       adminEvents = events;
+      renderAdminDonations(memberId, donations);
       console.log("[ADMIN] All events:", events);
       console.log("[ADMIN] All RSVPs:", rsvps);
 

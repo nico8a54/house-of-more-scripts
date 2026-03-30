@@ -1243,6 +1243,41 @@ async function handleAdminApproveMember(request, env) {
     throw new Error(`Supabase PATCH error (${sbRes.status}): ${err}`);
   }
 
+  // Send lifecycle email — fire-and-forget
+  if ((action === "approve" || action === "reject" || action === "freeze" || action === "unfreeze") && env.RESEND_API_KEY) {
+    const profileRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/member_profiles?member_id=eq.${encodeURIComponent(member_id)}&select=first_name,email&limit=1`,
+      { headers: { "apikey": env.SUPABASE_KEY, "Authorization": `Bearer ${env.SUPABASE_KEY}` } }
+    );
+    if (profileRes.ok) {
+      const [profile] = await profileRes.json();
+      if (profile?.email) {
+        fetch("https://api.resend.com/emails", {
+          method:  "POST",
+          headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from:    "events@thehouseofmore.com",
+            to:      profile.email,
+            subject: action === "approve"
+              ? "Welcome to the House of More — your membership is now active"
+              : action === "reject"
+              ? "Your House of More application"
+              : action === "freeze"
+              ? "Your House of More membership has been temporarily frozen"
+              : "Your House of More membership has been reactivated",
+            html: action === "approve"
+              ? buildApprovalEmail(profile.first_name)
+              : action === "reject"
+              ? buildRejectionEmail(profile.first_name)
+              : action === "freeze"
+              ? buildFreezeEmail(profile.first_name)
+              : buildUnfreezeEmail(profile.first_name),
+          }),
+        }).catch(err => console.error("[FREEZE EMAIL] Failed:", err.message));
+      }
+    }
+  }
+
   console.log(`[ADMIN ACTION] ${action} → ${member_id} → ${statusUpdate.application_status}`);
   return { ok: true, ...statusUpdate };
 }
@@ -1725,7 +1760,7 @@ async function handleEventReminders(env) {
   await sendReminderBatch(env, sbHeaders, now, 23, 25, "reminder_sent_at",    "24h");
   await sendReminderBatch(env, sbHeaders, now,  1,  3, "reminder_2h_sent_at", "2h");
   await sendReviewRequestBatch(env, sbHeaders, now);
-  await processNoShows(sbHeaders, now);
+  await processNoShows(env, sbHeaders, now);
 }
 
 async function sendReminderBatch(env, sbHeaders, now, hoursMin, hoursMax, flagField, type) {
@@ -1970,7 +2005,7 @@ function buildReminderEmail(firstName, eventName, eventDateISO, locationOrLink) 
 </table>`;
 }
 
-async function processNoShows(sbHeaders, now) {
+async function processNoShows(env, sbHeaders, now) {
   // Events that ended 24h ago (±1h window)
   const windowStart = new Date(now.getTime() - 25 * 3600000).toISOString();
   const windowEnd   = new Date(now.getTime() - 23 * 3600000).toISOString();
@@ -2041,6 +2076,30 @@ async function processNoShows(sbHeaders, now) {
       }
     );
     if (!freezeRes.ok) console.error(`[NO-SHOW] Failed to freeze members for event ${event.id}`);
+
+    // 5. Send freeze emails — fire-and-forget
+    if (env.RESEND_API_KEY && memberIds.length > 0) {
+      const profilesRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/member_profiles?member_id=in.(${memberIds.join(",")})&select=first_name,email`,
+        { headers: sbHeaders }
+      );
+      if (profilesRes.ok) {
+        const profiles = await profilesRes.json();
+        for (const p of profiles) {
+          if (!p.email) continue;
+          fetch("https://api.resend.com/emails", {
+            method:  "POST",
+            headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from:    "events@thehouseofmore.com",
+              to:      p.email,
+              subject: "Your House of More membership has been temporarily frozen",
+              html:    buildFreezeEmail(p.first_name),
+            }),
+          }).catch(err => console.error(`[FREEZE EMAIL] Failed for ${p.email}:`, err.message));
+        }
+      }
+    }
 
     console.log(`[NO-SHOW] "${event.event_name}" closed — ${rsvps.length} no-show(s) frozen`);
   }
@@ -2337,6 +2396,448 @@ function build2hReminderEmail(firstName, eventName, eventDateISO, locationOrLink
               Come ready to be present. That's all we ask.
               <br><br>
               <em>See you soon,</em><br>
+              <strong>The House of More Team</strong>
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:48px;"></td></tr>
+
+        <!-- Bottom Footer -->
+        <tr>
+          <td align="center" style="background-color:#f7f3ed; padding:18px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; color:#8c7a64;">
+              © House of More 2026
+            </div>
+          </td>
+        </tr>
+
+      </table>
+
+    </td>
+  </tr>
+</table>`;
+}
+
+function buildFreezeEmail(firstName) {
+  const name = firstName || "there";
+  return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f2f2f2; padding:40px 0;">
+  <tr>
+    <td align="center">
+
+      <table width="500" cellpadding="0" cellspacing="0" border="0" align="center"
+        style="background-color:#ffffff; border-radius:10px; overflow:hidden;">
+
+        <!-- Top Header -->
+        <tr>
+          <td align="center" style="background-color:#2b1f14; padding:24px 40px;">
+            <div style="font-family:Georgia, serif; font-size:22px; color:#ffffff; letter-spacing:1px;">
+              THE HOUSE OF MORE
+            </div>
+            <a href="https://thehouseofmore.com"
+               style="color:#946a49 !important; text-decoration:none; font-family:Arial, sans-serif; font-size:12px;">
+               thehouseofmore.com
+            </a>
+          </td>
+        </tr>
+
+        <tr><td style="height:36px;"></td></tr>
+
+        <!-- Section Label -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; letter-spacing:2px; color:#8c7a64;">
+              ACCOUNT NOTICE
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:14px;"></td></tr>
+
+        <!-- Main Title -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:26px; color:#2b2b2b; line-height:34px;">
+              Your membership has been temporarily frozen
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:20px;"></td></tr>
+
+        <!-- Body Text -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#5c5c5c; line-height:22px;">
+              Dear ${name},
+              <br><br>
+              Your membership has been temporarily frozen by the House of More admin.
+              <br><br>
+              This means your access to member experiences is currently paused. Please log in or contact us so we can support you in reactivating your account.
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:30px;"></td></tr>
+
+        <!-- CTA Button -->
+        <tr>
+          <td align="center" style="padding:0 50px;">
+            <a href="https://www.thehouseofmore.com/log-in"
+               style="display:inline-block; background-color:#946a49; color:#ffffff; text-decoration:none; font-family:Arial, sans-serif; font-size:14px; padding:14px 28px; border-radius:4px;">
+               Log In to Your Account →
+            </a>
+          </td>
+        </tr>
+
+        <tr><td style="height:36px;"></td></tr>
+
+        <tr>
+          <td style="padding:0 50px;">
+            <hr style="border:none; border-top:1px solid #e5ded4;">
+          </td>
+        </tr>
+
+        <tr><td style="height:20px;"></td></tr>
+
+        <!-- Closing -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#2b2b2b; line-height:22px;">
+              If you have any questions, simply reply to this email and our team will be happy to assist you.
+              <br><br>
+              <em>With warmth,</em><br>
+              <strong>The House of More Team</strong>
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:48px;"></td></tr>
+
+        <!-- Bottom Footer -->
+        <tr>
+          <td align="center" style="background-color:#f7f3ed; padding:18px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; color:#8c7a64;">
+              © House of More 2026
+            </div>
+          </td>
+        </tr>
+
+      </table>
+
+    </td>
+  </tr>
+</table>`;
+}
+
+function buildApprovalEmail(firstName) {
+  const name = firstName || "there";
+  return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f2f2f2; padding:40px 0;">
+  <tr>
+    <td align="center">
+
+      <table width="500" cellpadding="0" cellspacing="0" border="0" align="center"
+        style="background-color:#ffffff; border-radius:10px; overflow:hidden;">
+
+        <!-- Top Header -->
+        <tr>
+          <td align="center" style="background-color:#2b1f14; padding:24px 40px;">
+            <div style="font-family:Georgia, serif; font-size:22px; color:#ffffff; letter-spacing:1px;">
+              THE HOUSE OF MORE
+            </div>
+            <a href="https://thehouseofmore.com"
+               style="color:#946a49 !important; text-decoration:none; font-family:Arial, sans-serif; font-size:12px;">
+               thehouseofmore.com
+            </a>
+          </td>
+        </tr>
+
+        <tr><td style="height:36px;"></td></tr>
+
+        <!-- Main Title -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:26px; color:#2b2b2b; line-height:34px; font-weight:bold;">
+              Welcome to the House of More.
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:20px;"></td></tr>
+
+        <!-- Body Text -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:14px; color:#2b2b2b; line-height:22px;">
+              Dear ${name},
+              <br><br>
+              Your membership has been approved and your account is now active.
+              <br><br>
+              The House of More is a community of seekers, people who believe that growth, connection, and wisdom are not destinations but a way of walking through the world. We're honored to walk that path alongside you.
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:36px;"></td></tr>
+
+        <tr>
+          <td style="padding:0 50px;">
+            <hr style="border:none; border-top:1px solid #e5ded4;">
+          </td>
+        </tr>
+
+        <tr><td style="height:28px;"></td></tr>
+
+        <!-- Section Heading -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:18px; color:#946a49; line-height:26px; font-weight:bold;">
+              What you can do now
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:16px;"></td></tr>
+
+        <!-- Section Text -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:14px; color:#2b2b2b; line-height:22px;">
+              Log in to your member portal to browse and book upcoming experiences, gatherings, workshops, ceremonies, and more. Many of our events are members-only, and your access is now live.
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:30px;"></td></tr>
+
+        <!-- CTA Button -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <a href="https://www.thehouseofmore.com/log-in"
+               style="display:inline-block; background-color:#946a49; color:#ffffff; text-decoration:none; font-family:Arial, sans-serif; font-size:14px; font-weight:bold; padding:14px 28px; border-radius:4px;">
+               Log In to Your Account →
+            </a>
+          </td>
+        </tr>
+
+        <tr><td style="height:36px;"></td></tr>
+
+        <tr>
+          <td style="padding:0 50px;">
+            <hr style="border:none; border-top:1px solid #e5ded4;">
+          </td>
+        </tr>
+
+        <tr><td style="height:20px;"></td></tr>
+
+        <!-- Closing -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:14px; color:#2b2b2b; line-height:22px;">
+              We look forward to sharing this journey with you. If you ever have a question or need support, reply to this email and a member of our team will get back to you.
+              <br><br>
+              <em>With warmth,</em><br>
+              <strong>The House of More Team</strong>
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:48px;"></td></tr>
+
+        <!-- Bottom Footer -->
+        <tr>
+          <td align="center" style="background-color:#f7f3ed; padding:18px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; color:#8c7a64;">
+              © House of More 2026
+            </div>
+          </td>
+        </tr>
+
+      </table>
+
+    </td>
+  </tr>
+</table>`;
+}
+
+function buildRejectionEmail(firstName) {
+  const name = firstName || "there";
+  return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f2f2f2; padding:40px 0;">
+  <tr>
+    <td align="center">
+
+      <table width="500" cellpadding="0" cellspacing="0" border="0" align="center"
+        style="background-color:#ffffff; border-radius:10px; overflow:hidden;">
+
+        <!-- Top Header -->
+        <tr>
+          <td align="center" style="background-color:#2b1f14; padding:24px 40px;">
+            <div style="font-family:Georgia, serif; font-size:22px; color:#ffffff; letter-spacing:1px;">
+              THE HOUSE OF MORE
+            </div>
+            <a href="https://thehouseofmore.com"
+               style="color:#946a49 !important; text-decoration:none; font-family:Arial, sans-serif; font-size:12px;">
+               thehouseofmore.com
+            </a>
+          </td>
+        </tr>
+
+        <tr><td style="height:36px;"></td></tr>
+
+        <!-- Main Title -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:26px; color:#2b2b2b; line-height:34px;">
+              Thank you for applying.
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:20px;"></td></tr>
+
+        <!-- Body Text -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:14px; color:#2b2b2b; line-height:22px;">
+              Dear ${name},
+              <br><br>
+              Thank you for taking the time to apply to the House of More. We genuinely appreciate your interest in being part of this community.
+              <br><br>
+              After careful consideration, we are not able to move forward with your membership at this time. This is not a reflection of your worth or your path — it simply means the timing or fit wasn't quite right for where we are as a community right now.
+              <br><br>
+              We wish you well on your journey and hope our paths cross again.
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:36px;"></td></tr>
+
+        <tr>
+          <td style="padding:0 50px;">
+            <hr style="border:none; border-top:1px solid #e5ded4;">
+          </td>
+        </tr>
+
+        <tr><td style="height:20px;"></td></tr>
+
+        <!-- Closing -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:14px; color:#2b2b2b; line-height:22px;">
+              If you have any questions, reply to this email and a member of our team will be happy to speak with you.
+              <br><br>
+              <em>With warmth,</em><br>
+              <strong>The House of More Team</strong>
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:48px;"></td></tr>
+
+        <!-- Bottom Footer -->
+        <tr>
+          <td align="center" style="background-color:#f7f3ed; padding:18px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; color:#8c7a64;">
+              © House of More 2026
+            </div>
+          </td>
+        </tr>
+
+      </table>
+
+    </td>
+  </tr>
+</table>`;
+}
+
+function buildUnfreezeEmail(firstName) {
+  const name = firstName || "there";
+  return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f2f2f2; padding:40px 0;">
+  <tr>
+    <td align="center">
+
+      <table width="500" cellpadding="0" cellspacing="0" border="0" align="center"
+        style="background-color:#ffffff; border-radius:10px; overflow:hidden;">
+
+        <!-- Top Header -->
+        <tr>
+          <td align="center" style="background-color:#2b1f14; padding:24px 40px;">
+            <div style="font-family:Georgia, serif; font-size:22px; color:#ffffff; letter-spacing:1px;">
+              THE HOUSE OF MORE
+            </div>
+            <a href="https://thehouseofmore.com"
+               style="color:#946a49 !important; text-decoration:none; font-family:Arial, sans-serif; font-size:12px;">
+               thehouseofmore.com
+            </a>
+          </td>
+        </tr>
+
+        <tr><td style="height:36px;"></td></tr>
+
+        <!-- Section Label -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; letter-spacing:2px; color:#8c7a64;">
+              ACCOUNT UPDATE
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:14px;"></td></tr>
+
+        <!-- Main Title -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:26px; color:#2b2b2b; line-height:34px;">
+              Your membership has been reactivated
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:20px;"></td></tr>
+
+        <!-- Body Text -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#5c5c5c; line-height:22px;">
+              Dear ${name},
+              <br><br>
+              Your account has been reactivated, and you now have full access.
+              <br><br>
+              You can log in to your member portal to explore upcoming gatherings, workshops, ceremonies, and experiences. Your access to members-only events has been restored.
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:30px;"></td></tr>
+
+        <!-- CTA Button -->
+        <tr>
+          <td align="center" style="padding:0 50px;">
+            <a href="https://www.thehouseofmore.com/log-in"
+               style="display:inline-block; background-color:#946a49; color:#ffffff; text-decoration:none; font-family:Arial, sans-serif; font-size:14px; padding:14px 28px; border-radius:4px;">
+               Log In to Your Account →
+            </a>
+          </td>
+        </tr>
+
+        <tr><td style="height:36px;"></td></tr>
+
+        <tr>
+          <td style="padding:0 50px;">
+            <hr style="border:none; border-top:1px solid #e5ded4;">
+          </td>
+        </tr>
+
+        <tr><td style="height:20px;"></td></tr>
+
+        <!-- Closing -->
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#2b2b2b; line-height:22px;">
+              If you have any questions, simply reply to this email and our team will be happy to assist you.
+              <br><br>
+              <em>With warmth,</em><br>
               <strong>The House of More Team</strong>
             </div>
           </td>
