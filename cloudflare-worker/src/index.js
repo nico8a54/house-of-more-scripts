@@ -58,6 +58,21 @@ function parsePlanConnections(connections) {
   }));
 }
 
+function buildPlanConnections(profile) {
+  const STATUS_MAP = {
+    pending:     { planId: PLAN_IDS.pending,     planName: "Members" },
+    active:      { planId: PLAN_IDS.active,      planName: "Approved Member" },
+    frozen:      { planId: PLAN_IDS.frozen,      planName: "Freeze" },
+    rejected:    { planId: PLAN_IDS.rejected,    planName: "Rejected" },
+    facilitator: { planId: PLAN_IDS.facilitator, planName: "Facilitator" },
+    admin:       { planId: PLAN_IDS.admin,       planName: "Admin" },
+  };
+  const status = profile.application_status || "pending";
+  const entry = STATUS_MAP[status];
+  if (!entry) return [];
+  return [{ planId: entry.planId, planName: entry.planName, status: "active", type: "free" }];
+}
+
 
 const QUESTIONNAIRE_FIELDS = [
   "where_are_you_on_your_path",
@@ -665,12 +680,11 @@ async function handleMemberProfileSupabase(payload, env) {
   };
   const mid = encodeURIComponent(member_id);
 
-  const [profileRes, questionnaireRes, rsvpsRes, donationsRes, msRes, allMsgRes, readMsgRes] = await Promise.all([
+  const [profileRes, questionnaireRes, rsvpsRes, donationsRes, allMsgRes, readMsgRes] = await Promise.all([
     fetch(`${SUPABASE_URL}/rest/v1/member_profiles?member_id=eq.${mid}&select=*`,                         { headers: sbHeaders }),
     fetch(`${SUPABASE_URL}/rest/v1/member_questionnaire?member_id=eq.${mid}&select=*`,                    { headers: sbHeaders }),
     fetch(`${SUPABASE_URL}/rest/v1/event_rsvps?member_id=eq.${mid}&select=*,events(event_slug)&order=booked_at.desc`, { headers: sbHeaders }),
     fetch(`${SUPABASE_URL}/rest/v1/donations?member_id=eq.${mid}&select=*&order=created_at.desc`,         { headers: sbHeaders }),
-    fetch(`https://admin.memberstack.com/members/${member_id}`, { headers: { "x-api-key": env.MEMBERSTACK_KEY } }),
     fetch(`${SUPABASE_URL}/rest/v1/admin_messages?select=id`,                                                    { headers: sbHeaders }),
     fetch(`${SUPABASE_URL}/rest/v1/member_messages?member_id=eq.${mid}&read=eq.true&select=id`,                  { headers: sbHeaders }),
   ]);
@@ -685,22 +699,15 @@ async function handleMemberProfileSupabase(payload, env) {
     questionnaireRes.ok ? questionnaireRes.json() : Promise.resolve([]),
     rsvpsRes.ok        ? rsvpsRes.json()          : Promise.resolve([]),
     donationsRes.ok    ? donationsRes.json()       : Promise.resolve([]),
-    allMsgRes.ok       ? allMsgRes.json()           : Promise.resolve([]),
-    readMsgRes.ok      ? readMsgRes.json()          : Promise.resolve([]),
+    allMsgRes.ok       ? allMsgRes.json()          : Promise.resolve([]),
+    readMsgRes.ok      ? readMsgRes.json()         : Promise.resolve([]),
   ]);
 
   const profile      = profiles[0]        || {};
   const emptyQuestionnaire = Object.fromEntries(QUESTIONNAIRE_FIELDS.map(k => [k, null]));
   const questionnaire = questionnaires[0] ? { ...emptyQuestionnaire, ...questionnaires[0] } : emptyQuestionnaire;
 
-  let plan_name = [];
-  if (msRes.ok) {
-    const msData = await msRes.json();
-    const connections = msData?.data?.planConnections || [];
-    plan_name = parsePlanConnections(connections);
-  } else {
-    console.warn(`[MEMBER] Memberstack GET member failed: ${msRes.status}`);
-  }
+  const plan_name = buildPlanConnections(profile);
 
   const emptyRsvp     = Object.fromEntries(RSVP_FIELDS.map(k => [k, null]));
   const emptyDonation = Object.fromEntries(DONATION_FIELDS.map(k => [k, null]));
@@ -708,7 +715,7 @@ async function handleMemberProfileSupabase(payload, env) {
   // Facilitator: fetch all RSVPs for their events
   let facilitator_rsvps = null;
   let facilitator_events = null;
-  const isFacilitator = plan_name.some(p => p.planId === PLAN_IDS.facilitator);
+  const isFacilitator = profile.application_status === "facilitator";
   if (isFacilitator && profile.email) {
     const email = encodeURIComponent(profile.email);
     const facilitatorEventsRes = await fetch(
