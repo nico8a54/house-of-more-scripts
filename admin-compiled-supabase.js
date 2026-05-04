@@ -226,10 +226,8 @@
     if (newMessageBtn) {
       newMessageBtn.addEventListener("click", () => {
         newMessageBtn.classList.add("disable");
-        if (messageView) messageView.classList.remove("hide");
         if (readingBlock) readingBlock.classList.add("hide");
         if (messageForm) messageForm.classList.remove("hide");
-        document.querySelectorAll(".mesage-from-wrapper, .message-form").forEach(el => el.classList.remove("hide"));
         if (sendMessageWrapper) sendMessageWrapper.classList.remove("hide");
         if (messageForm) messageForm.reset();
         if (messageView) messageView.classList.remove("hide-mobile-landscape");
@@ -616,8 +614,8 @@
         console.warn("[ADMIN] .message-template.admin not found");
       }
 
-      const adminMessageView = document.querySelector(".message-view");
-      if (adminMessageView) adminMessageView.classList.toggle("hide", adminMessages.length === 0);
+      const adminReadingBlock = document.getElementById("reading-message");
+      if (adminReadingBlock) adminReadingBlock.classList.toggle("hide", adminMessages.length === 0);
 
       let activeCount = 0, facilitatorCount = 0, frozenCount = 0, pendingCount = 0, rejectedCount = 0, adminCount = 0;
 
