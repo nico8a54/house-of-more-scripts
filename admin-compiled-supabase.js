@@ -226,6 +226,7 @@
     if (newMessageBtn) {
       newMessageBtn.addEventListener("click", () => {
         newMessageBtn.classList.add("disable");
+        if (messageView) messageView.classList.remove("hide");
         if (readingBlock) readingBlock.classList.add("hide");
         if (messageForm) messageForm.classList.remove("hide");
         if (sendMessageWrapper) sendMessageWrapper.classList.remove("hide");
