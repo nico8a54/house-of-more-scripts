@@ -822,6 +822,10 @@ function renderFields(data) {
         messagesCache  = await res.json();
         messagesLoaded = true;
         console.log("[MEMBER] Messages loaded:", messagesCache.length);
+
+        const visibleCount = messagesCache.filter(m => !m.erased && (m.recipient !== "facilitators" || memberIsFacilitator)).length;
+        if (messageView) messageView.style.display = visibleCount === 0 ? "none" : "";
+
         renderMessages(messagesCache);
       } catch (err) {
         console.error("[MEMBER] Messages fetch error:", err);
