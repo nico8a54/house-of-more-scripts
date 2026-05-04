@@ -229,6 +229,7 @@
         if (messageView) messageView.classList.remove("hide");
         if (readingBlock) readingBlock.classList.add("hide");
         if (messageForm) messageForm.classList.remove("hide");
+        document.querySelectorAll(".mesage-from-wrapper, .message-form").forEach(el => el.classList.remove("hide"));
         if (sendMessageWrapper) sendMessageWrapper.classList.remove("hide");
         if (messageForm) messageForm.reset();
         if (messageView) messageView.classList.remove("hide-mobile-landscape");
