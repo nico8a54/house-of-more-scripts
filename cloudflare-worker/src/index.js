@@ -584,7 +584,7 @@ async function handleSendRsvpEmail(request, env) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "onboarding@resend.dev",
+      from: "events@thehouseofmore.com",
       to: member.email,
       subject,
       html,
@@ -1523,7 +1523,7 @@ async function handleSendDonationReceipt(request, env) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from:    "onboarding@resend.dev",
+      from:    "events@thehouseofmore.com",
       to:      email,
       subject: `Your ${isSubscription ? "monthly " : ""}donation receipt — ${amountFormatted}`,
       html,
