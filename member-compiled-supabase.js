@@ -795,7 +795,7 @@ function renderFields(data) {
 
       const firstClone = container.querySelector(".message-template.admin:not(.hide)");
       if (firstClone) {
-        if (messageView) messageView.style.display = "";
+        if (messageView) messageView.classList.remove("hide");
         firstClone.classList.add("active");
         renderMessage(firstClone);
         showMessageView();
@@ -806,7 +806,7 @@ function renderFields(data) {
           updateAlert();
         }
       } else {
-        if (messageView) messageView.style.display = "none";
+        if (messageView) messageView.classList.add("hide");
       }
     }
 
@@ -824,7 +824,7 @@ function renderFields(data) {
         console.log("[MEMBER] Messages loaded:", messagesCache.length);
 
         const visibleCount = messagesCache.filter(m => !m.erased && (m.recipient !== "facilitators" || memberIsFacilitator)).length;
-        if (messageView) messageView.style.display = visibleCount === 0 ? "none" : "";
+        if (messageView) messageView.classList.toggle("hide", visibleCount === 0);
 
         renderMessages(messagesCache);
       } catch (err) {
