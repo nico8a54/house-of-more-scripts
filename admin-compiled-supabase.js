@@ -614,6 +614,8 @@
         console.warn("[ADMIN] .message-template.admin not found");
       }
 
+      if (messageView) messageView.classList.toggle("hide", adminMessages.length === 0);
+
       let activeCount = 0, facilitatorCount = 0, frozenCount = 0, pendingCount = 0, rejectedCount = 0, adminCount = 0;
 
       members.forEach(member => {
