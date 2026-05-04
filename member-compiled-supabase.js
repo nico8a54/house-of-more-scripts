@@ -795,6 +795,7 @@ function renderFields(data) {
 
       const firstClone = container.querySelector(".message-template.admin:not(.hide)");
       if (firstClone) {
+        if (messageView) messageView.classList.remove("hide");
         firstClone.classList.add("active");
         renderMessage(firstClone);
         showMessageView();
@@ -804,6 +805,8 @@ function renderFields(data) {
           markAction(firstClone.dataset.messageId, "read");
           updateAlert();
         }
+      } else {
+        if (messageView) messageView.classList.add("hide");
       }
     }
 
