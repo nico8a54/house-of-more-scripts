@@ -1258,6 +1258,7 @@ async function handleAdminApproveMember(request, env) {
     );
     if (profileRes.ok) {
       const [profile] = await profileRes.json();
+      console.log(`[LIFECYCLE EMAIL] action=${action} member=${member_id} email=${profile?.email || "(none)"}`);
       if (profile?.email) {
         fetch("https://api.resend.com/emails", {
           method:  "POST",
@@ -1280,8 +1281,15 @@ async function handleAdminApproveMember(request, env) {
               ? buildFreezeEmail(profile.first_name)
               : buildUnfreezeEmail(profile.first_name),
           }),
-        }).catch(err => console.error("[FREEZE EMAIL] Failed:", err.message));
+        })
+          .then(async r => {
+            if (r.ok) console.log(`[LIFECYCLE EMAIL] ${action} sent to ${profile.email} OK`);
+            else console.error(`[LIFECYCLE EMAIL] ${action} failed (${r.status}):`, await r.text());
+          })
+          .catch(err => console.error(`[LIFECYCLE EMAIL] ${action} fetch error:`, err.message));
       }
+    } else {
+      console.error(`[LIFECYCLE EMAIL] profile fetch failed (${profileRes.status})`);
     }
   }
 
