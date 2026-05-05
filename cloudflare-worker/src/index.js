@@ -1221,7 +1221,7 @@ async function handleAdminCreateMessage(request, env, origin) {
   });
 }
 
-async function handleAdminApproveMember(request, env) {
+async function handleAdminApproveMember(request, env, ctx) {
   let payload;
   try { payload = await request.json(); } catch { return new Response("Bad request", { status: 400 }); }
 
@@ -1260,7 +1260,7 @@ async function handleAdminApproveMember(request, env) {
       const [profile] = await profileRes.json();
       console.log(`[LIFECYCLE EMAIL] action=${action} member=${member_id} email=${profile?.email || "(none)"}`);
       if (profile?.email) {
-        fetch("https://api.resend.com/emails", {
+        const emailPromise = fetch("https://api.resend.com/emails", {
           method:  "POST",
           headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1287,6 +1287,7 @@ async function handleAdminApproveMember(request, env) {
             else console.error(`[LIFECYCLE EMAIL] ${action} failed (${r.status}):`, await r.text());
           })
           .catch(err => console.error(`[LIFECYCLE EMAIL] ${action} fetch error:`, err.message));
+        if (ctx?.waitUntil) ctx.waitUntil(emailPromise);
       }
     } else {
       console.error(`[LIFECYCLE EMAIL] profile fetch failed (${profileRes.status})`);
@@ -2966,7 +2967,7 @@ export default {
     ctx.waitUntil(handleEventReminders(env));
   },
 
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
     const origin = request.headers.get("Origin") || "";
@@ -3315,7 +3316,7 @@ export default {
         return new Response("Server misconfiguration", { status: 500 });
       }
       try {
-        const data = await handleAdminApproveMember(request, env);
+        const data = await handleAdminApproveMember(request, env, ctx);
         return new Response(JSON.stringify(data), {
           status: 200,
           headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
