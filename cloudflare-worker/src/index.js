@@ -2509,7 +2509,7 @@ function buildFreezeEmail(firstName) {
               <br><br>
               Your membership has been temporarily frozen by the House of More admin.
               <br><br>
-              This means your access to member experiences is currently paused. Please log in or contact us so we can support you in reactivating your account.
+              This means your access to member experiences is currently paused. You can reactivate your membership at any time by making a contribution below.
             </div>
           </td>
         </tr>
@@ -2519,9 +2519,9 @@ function buildFreezeEmail(firstName) {
         <!-- CTA Button -->
         <tr>
           <td align="center" style="padding:0 50px;">
-            <a href="https://www.thehouseofmore.com/log-in"
+            <a href="https://www.thehouseofmore.com/membership-frozen"
                style="display:inline-block; background-color:#946a49; color:#ffffff; text-decoration:none; font-family:Arial, sans-serif; font-size:14px; padding:14px 28px; border-radius:4px;">
-               Log In to Your Account →
+               Reactivate Your Membership →
             </a>
           </td>
         </tr>

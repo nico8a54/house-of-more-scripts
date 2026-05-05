@@ -558,6 +558,12 @@ function renderFields(data) {
 
     console.log("[MEMBER] Full profile response:", data);
 
+    if (data?.application_status === "frozen") {
+      console.log("[MEMBER] Frozen status detected — redirecting to /membership-frozen");
+      window.location.replace("/membership-frozen");
+      return;
+    }
+
     const isFacilitator = Array.isArray(data?.plan_name) &&
       data.plan_name.some(p => p?.planId === "pln_facilitator-9o1kw0j5o");
     if (isFacilitator) {
