@@ -642,7 +642,7 @@ async function handleMemberstackAddPlan(request, env) {
   });
 }
 
-async function handleQuestionnaireSupabase(payload, env) {
+async function handleQuestionnaireSupabase(payload, env, ctx) {
   const { member_id, email } = payload;
   if (!member_id) throw new Error("member_id is required");
 
@@ -668,6 +668,26 @@ async function handleQuestionnaireSupabase(payload, env) {
 
   await supabaseUpsert("member_profiles",      profileData,       "member_id", env.SUPABASE_KEY);
   await supabaseUpsert("member_questionnaire", questionnaireData, "member_id", env.SUPABASE_KEY);
+
+  // Send "application received" email — fire-and-forget via ctx.waitUntil
+  if (env.RESEND_API_KEY && email) {
+    const emailPromise = fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from:    "events@thehouseofmore.com",
+        to:      email,
+        subject: "We received your application — welcome to the start of something meaningful",
+        html:    buildApplicationReceivedEmail(profileData.first_name),
+      }),
+    })
+      .then(async r => {
+        if (r.ok) console.log(`[APPLICATION EMAIL] sent to ${email} OK`);
+        else console.error(`[APPLICATION EMAIL] failed (${r.status}):`, await r.text());
+      })
+      .catch(err => console.error(`[APPLICATION EMAIL] fetch error:`, err.message));
+    if (ctx?.waitUntil) ctx.waitUntil(emailPromise);
+  }
 }
 
 async function handleMemberProfileSupabase(payload, env) {
@@ -2546,6 +2566,124 @@ function buildFreezeEmail(firstName) {
 </table>`;
 }
 
+function buildApplicationReceivedEmail(firstName) {
+  const name = firstName || "there";
+  return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f2f2f2; padding:40px 0;">
+  <tr>
+    <td align="center">
+
+      <table width="500" cellpadding="0" cellspacing="0" border="0" align="center"
+        style="background-color:#ffffff; border-radius:10px; overflow:hidden;">
+
+        <!-- Top Header -->
+        <tr>
+          <td align="center" style="background-color:#2b1f14; padding:24px 40px;">
+            <div style="font-family:Georgia, serif; font-size:22px; color:#ffffff; letter-spacing:1px;">
+              THE HOUSE OF MORE
+            </div>
+            <a href="https://thehouseofmore.com"
+               style="color:#946a49 !important; text-decoration:none; font-family:Arial, sans-serif; font-size:12px;">
+               thehouseofmore.com
+            </a>
+          </td>
+        </tr>
+
+        <tr><td style="height:36px;"></td></tr>
+
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; letter-spacing:2px; color:#8c7a64;">
+              MEMBERSHIP APPLICATION
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:14px;"></td></tr>
+
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:26px; color:#2b2b2b; line-height:34px;">
+              We've received your application.
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:20px;"></td></tr>
+
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#5c5c5c; line-height:22px;">
+              Dear ${name},
+              <br><br>
+              Your application to join The House of More has been received, and our team will review it shortly.
+              <br><br>
+              Every membership is reviewed personally, and we will be in touch within 7 to 10 business days.
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:30px;"></td></tr>
+
+        <tr>
+          <td style="padding:0 50px;">
+            <hr style="border:none; border-top:1px solid #e5ded4;">
+          </td>
+        </tr>
+
+        <tr><td style="height:24px;"></td></tr>
+
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Georgia, serif; font-size:18px; color:#2b2b2b; line-height:26px;">
+              What happens next?
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:14px;"></td></tr>
+
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#5c5c5c; line-height:22px;">
+              Our team will review your application and reach out to you at this email address with a decision.
+              <br><br>
+              In the meantime, feel free to explore our upcoming experiences at
+              <a href="https://thehouseofmore.com" style="color:#946a49; text-decoration:none;">
+                thehouseofmore.com</a>.
+              <br><br>
+              If you have any questions, simply reply to this email and a member of our team will get back to you.
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:40px;"></td></tr>
+
+        <tr>
+          <td align="left" style="padding:0 50px;">
+            <div style="font-family:Arial, sans-serif; font-size:14px; color:#2b2b2b; line-height:22px;">
+              <em>With warmth,</em><br>
+              <strong>The House of More Team</strong>
+            </div>
+          </td>
+        </tr>
+
+        <tr><td style="height:48px;"></td></tr>
+
+        <tr>
+          <td align="center" style="background-color:#f7f3ed; padding:18px;">
+            <div style="font-family:Arial, sans-serif; font-size:12px; color:#8c7a64;">
+              © House of More 2026
+            </div>
+          </td>
+        </tr>
+
+      </table>
+
+    </td>
+  </tr>
+</table>`;
+}
+
 function buildApprovalEmail(firstName) {
   const name = firstName || "there";
   return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f2f2f2; padding:40px 0;">
@@ -3048,7 +3186,7 @@ export default {
         return new Response("Bad request", { status: 400 });
       }
       try {
-        await handleQuestionnaireSupabase(payload, env);
+        await handleQuestionnaireSupabase(payload, env, ctx);
         return new Response(JSON.stringify({ ok: true }), {
           status: 200,
           headers: { "Content-Type": "application/json", ...corsHeaders(origin, env) },
