@@ -584,7 +584,7 @@ async function handleSendRsvpEmail(request, env) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "events@thehouseofmore.com",
+      from: "info@thehouseofmore.com",
       to: member.email,
       subject,
       html,
@@ -675,7 +675,7 @@ async function handleQuestionnaireSupabase(payload, env, ctx) {
       method: "POST",
       headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from:    "events@thehouseofmore.com",
+        from:    "info@thehouseofmore.com",
         to:      email,
         subject: "We received your application — welcome to the start of something meaningful",
         html:    buildApplicationReceivedEmail(profileData.first_name),
@@ -1284,7 +1284,7 @@ async function handleAdminApproveMember(request, env, ctx) {
           method:  "POST",
           headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            from:    "events@thehouseofmore.com",
+            from:    "info@thehouseofmore.com",
             to:      profile.email,
             subject: action === "approve"
               ? "Welcome to the House of More — your membership is now active"
@@ -1552,7 +1552,7 @@ async function handleSendDonationReceipt(request, env) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from:    "events@thehouseofmore.com",
+      from:    "info@thehouseofmore.com",
       to:      email,
       subject: `Your ${isSubscription ? "monthly " : ""}donation receipt — ${amountFormatted}`,
       html,
@@ -1871,7 +1871,7 @@ async function sendReminderBatch(env, sbHeaders, now, hoursMin, hoursMax, flagFi
       const emailRes = await fetch("https://api.resend.com/emails", {
         method:  "POST",
         headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: "events@thehouseofmore.com", to: member.email, subject, html }),
+        body: JSON.stringify({ from: "info@thehouseofmore.com", to: member.email, subject, html }),
       });
 
       if (emailRes.ok) {
@@ -2127,7 +2127,7 @@ async function processNoShows(env, sbHeaders, now) {
             method:  "POST",
             headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-              from:    "events@thehouseofmore.com",
+              from:    "info@thehouseofmore.com",
               to:      p.email,
               subject: "Your House of More membership has been temporarily frozen",
               html:    buildFreezeEmail(p.first_name),
@@ -2213,7 +2213,7 @@ async function sendReviewRequestBatch(env, sbHeaders, now) {
       const emailRes = await fetch("https://api.resend.com/emails", {
         method:  "POST",
         headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: "events@thehouseofmore.com", to: member.email, subject, html }),
+        body: JSON.stringify({ from: "info@thehouseofmore.com", to: member.email, subject, html }),
       });
 
       if (emailRes.ok) {
