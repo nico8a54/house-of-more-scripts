@@ -228,6 +228,7 @@
         newMessageBtn.classList.add("disable");
         if (readingBlock) readingBlock.classList.add("hide");
         if (messageForm) messageForm.classList.remove("hide");
+        document.querySelector(".message-form")?.classList.remove("hide");
         if (sendMessageWrapper) sendMessageWrapper.classList.remove("hide");
         if (messageForm) messageForm.reset();
         if (messageView) messageView.classList.remove("hide-mobile-landscape");
@@ -241,6 +242,7 @@
         if (newMessageBtn) newMessageBtn.classList.remove("disable");
         if (readingBlock) readingBlock.classList.remove("hide");
         if (messageForm) messageForm.classList.add("hide");
+        document.querySelector(".message-form")?.classList.add("hide");
         if (sendMessageWrapper) sendMessageWrapper.classList.add("hide");
         if (messageView) messageView.classList.add("hide-mobile-landscape");
         if (messageList) messageList.classList.remove("hide-mobile-landscape");
