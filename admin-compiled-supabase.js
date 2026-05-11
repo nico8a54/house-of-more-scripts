@@ -672,7 +672,8 @@
 
       const populateModal = (member) => {
         activeMemberId = member.member_id;
-        const q      = (member.member_questionnaire || [])[0] || {};
+        const rawQ   = member.member_questionnaire;
+        const q      = Array.isArray(rawQ) ? (rawQ[0] || {}) : (rawQ || {});
         const status = (member.application_status || "").toLowerCase();
 
         // --- Profile fields ---
