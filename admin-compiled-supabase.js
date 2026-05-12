@@ -136,6 +136,70 @@
   });
 
   /*=========================================================
+    SECTION 2b — COLUMN HEADER SORTING
+    Click a header with [data-sort="field"] to sort the rows below
+    in its closest .messages-wrapper / .applicants-wrapper / similar
+    container by the matching [data-field="..."] text.
+    Toggles asc → desc → asc on repeat clicks.
+  =========================================================*/
+  document.addEventListener("click", (e) => {
+    const header = e.target.closest("[data-sort]");
+    if (!header) return;
+    const field = header.dataset.sort;
+    if (!field) return;
+
+    // Find the row container — walk up to the closest section that holds the rows
+    const section = header.closest("section, .messages-wrapper, .applicants-wrapper, .members-wrapper")
+      || header.parentElement?.parentElement
+      || document.body;
+
+    const rows = Array.from(section.querySelectorAll(
+      "[data-clone='true'], .list-block-template[data-clone='true']"
+    ));
+    if (!rows.length) return;
+
+    // Toggle direction
+    const currentDir = header.dataset.sortDir === "asc" ? "asc" : (header.dataset.sortDir === "desc" ? "desc" : null);
+    const dir = currentDir === "asc" ? "desc" : "asc";
+
+    // Clear direction state from other headers in the same scope
+    section.querySelectorAll("[data-sort]").forEach(h => {
+      h.dataset.sortDir = "";
+      h.classList.remove("sort-asc", "sort-desc");
+    });
+    header.dataset.sortDir = dir;
+    header.classList.add(dir === "asc" ? "sort-asc" : "sort-desc");
+
+    const isDate = /date|submitted|createdAt|created_at|booked/i.test(field);
+
+    const getValue = (row) => {
+      const el = row.querySelector(`[data-field="${field}"]`);
+      const text = (el?.textContent || "").trim();
+      if (!text) return null;
+      if (isDate) {
+        const t = Date.parse(text);
+        return Number.isNaN(t) ? null : t;
+      }
+      const n = Number(text.replace(/[$,]/g, ""));
+      return Number.isFinite(n) && text.match(/^[\d$,.\- ]+$/) ? n : text.toLowerCase();
+    };
+
+    rows.sort((a, b) => {
+      const va = getValue(a);
+      const vb = getValue(b);
+      if (va === null && vb === null) return 0;
+      if (va === null) return 1;   // nulls always last
+      if (vb === null) return -1;
+      if (va < vb) return dir === "asc" ? -1 : 1;
+      if (va > vb) return dir === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    const parent = rows[0].parentElement;
+    rows.forEach(r => parent.appendChild(r));
+  });
+
+  /*=========================================================
     SECTION 3 — ADD ?admin=true TO EVENT LINKS
     src: admin-parameter.js
   =========================================================*/
