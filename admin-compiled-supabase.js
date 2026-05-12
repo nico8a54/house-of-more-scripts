@@ -165,9 +165,12 @@
     scope.querySelectorAll("[data-sort]").forEach(h => {
       h.dataset.sortDir = "";
       h.classList.remove("sort-asc", "sort-desc");
+      h.querySelector(".sort-block")?.classList.remove("sort-asc", "sort-desc");
     });
     header.dataset.sortDir = dir;
-    header.classList.add(dir === "asc" ? "sort-asc" : "sort-desc");
+    const dirClass = dir === "asc" ? "sort-asc" : "sort-desc";
+    header.classList.add(dirClass);
+    header.querySelector(".sort-block")?.classList.add(dirClass);
 
     const isDate = /date|submitted|createdAt|created_at|booked/i.test(field);
 
