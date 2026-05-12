@@ -684,9 +684,11 @@
         setField(applicantModal, "location",       member.location);
         setField(applicantModal, "marital_status", member.marital_status);
         setField(applicantModal, "birthday",       member.birthday);
+        setField(applicantModal, "gender",         member.gender);
+        setField(applicantModal, "memberId",       member.member_id);
         setField(applicantModal, "submitted_at",   member.date_of_request ? new Date(member.date_of_request).toLocaleDateString() : "");
 
-        // gender uses data-ms-member, not data-field
+        // backwards-compat: still populate the older data-ms-member="gender" target if it exists
         const genderEl = applicantModal.querySelector('[data-ms-member="gender"]');
         if (genderEl) genderEl.textContent = member.gender ?? "";
 
@@ -737,6 +739,8 @@
         setField(clone, "phone",              member.phone);
         setField(clone, "createdAt",          member.date_of_request ? new Date(member.date_of_request).toLocaleDateString() : "");
         setField(clone, "member-id",          member.member_id);
+        setField(clone, "memberId",           member.member_id);
+        setField(clone, "gender",             member.gender);
         setField(clone, "application_status", "pending");
         setInitials(clone, member.first_name, member.last_name);
         applyStatusClass(clone.querySelector(".status-tag"), "pending");
@@ -765,6 +769,8 @@
         setField(clone, "phone",              member.phone);
         setField(clone, "createdAt",          member.date_of_request ? new Date(member.date_of_request).toLocaleDateString() : "");
         setField(clone, "member-id",          member.member_id);
+        setField(clone, "memberId",           member.member_id);
+        setField(clone, "gender",             member.gender);
         setField(clone, "application_status", status);
         const memberTotal = donationsByMember[member.member_id] || 0;
         setField(clone, "member-donations",   memberTotal > 0 ? formatUSD(memberTotal / 100) : "--");
@@ -792,6 +798,8 @@
         setField(clone, "phone",              member.phone);
         setField(clone, "createdAt",          member.date_of_request ? new Date(member.date_of_request).toLocaleDateString() : "");
         setField(clone, "member-id",          member.member_id);
+        setField(clone, "memberId",           member.member_id);
+        setField(clone, "gender",             member.gender);
         setField(clone, "application_status", "facilitator");
         applyStatusClass(clone.querySelector(".status-tag"), "facilitator");
         attachOpenModal(clone, member);
