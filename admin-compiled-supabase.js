@@ -548,6 +548,51 @@
       adminRsvps = rsvps;
       adminEvents = events;
       renderAdminDonations(memberId, donations);
+
+      // CSV export — wired to #export-applicants-csv (pending only) and #export-members-csv (all)
+      const csvEscape = (val) => {
+        if (val === null || val === undefined) return "";
+        const s = String(val);
+        return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const buildCsv = (rows) => {
+        const headers = [
+          "member_id","first_name","last_name","email","phone","gender","birthday","location","marital_status",
+          "application_status","subscription_plan","date_of_request","created_at",
+          "where_are_you_on_your_path","how_can_we_support_you","how_did_you_hear_about_the_house_of_more",
+          "have_you_been_with_the_house_of_more","how_many_events_have_you_attended_at_the_hom",
+          "how_many_events_per_month_can_you_participate","what_draws_you_to_the_house_of_more",
+          "community_and_contribution","is_there_anything_else","do_you_feel_aligned_with_the_house_of_more",
+          "i_commit_to_respecting_the_house_of_more","skills_to_share"
+        ];
+        const lines = [headers.join(",")];
+        rows.forEach(m => {
+          const rawQ = m.member_questionnaire;
+          const q = Array.isArray(rawQ) ? (rawQ[0] || {}) : (rawQ || {});
+          lines.push(headers.map(h => {
+            if (h in q) return csvEscape(q[h]);
+            return csvEscape(m[h]);
+          }).join(","));
+        });
+        return lines.join("\r\n");
+      };
+      const downloadCsv = (filename, csv) => {
+        const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
+      };
+      document.getElementById("export-applicants-csv")?.addEventListener("click", () => {
+        const pending = members.filter(m => (m.application_status || "").toLowerCase() === "pending");
+        const today = new Date().toISOString().slice(0, 10);
+        downloadCsv(`hom-applicants-${today}.csv`, buildCsv(pending));
+      });
+      document.getElementById("export-members-csv")?.addEventListener("click", () => {
+        const today = new Date().toISOString().slice(0, 10);
+        downloadCsv(`hom-members-${today}.csv`, buildCsv(members));
+      });
       console.log("[ADMIN] All events:", events);
       console.log("[ADMIN] All RSVPs:", rsvps);
 
