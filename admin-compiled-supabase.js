@@ -70,11 +70,44 @@
     const filterBtn = e.target.closest(".status-tag-filter");
     if (!filterBtn) return;
     const status = filterBtn.dataset.status;
-    if (!status) return;
+    const gender = filterBtn.dataset.gender;
+    if (!status && !gender) return;
+
+    // --- Gender filter (applicants only) ---
+    if (gender) {
+      const applicants = document.querySelectorAll(".list-block-template.applicant[data-clone='true']");
+      const genderFilters = document.querySelectorAll(".status-tag-filter[data-gender]");
+      const closeIcon = filterBtn.querySelector(".close-filter");
+      const isActive = filterBtn.classList.contains("active");
+
+      genderFilters.forEach(btn => {
+        btn.classList.remove("active");
+        btn.querySelector(".close-filter")?.classList.add("hide");
+        btn.querySelector(".check")?.classList.remove("hide");
+      });
+
+      if (isActive) {
+        applicants.forEach(item => { item.style.display = "grid"; });
+        return;
+      }
+
+      filterBtn.classList.add("active");
+      closeIcon?.classList.remove("hide");
+      filterBtn.querySelector(".check")?.classList.add("hide");
+
+      const target = gender.trim().toLowerCase();
+      applicants.forEach(item => {
+        const genderText = (item.querySelector('[data-field="gender"]')?.textContent || "").trim().toLowerCase();
+        item.style.display = (genderText === target) ? "grid" : "none";
+      });
+      return;
+    }
+
+    // --- Status filter (existing behavior) ---
     const items = document.querySelectorAll(
       ".list-block-template.member[data-clone='true'], .list-block-template.applicant[data-clone='true']"
     );
-    const allFilters = document.querySelectorAll(".status-tag-filter");
+    const allFilters = document.querySelectorAll(".status-tag-filter[data-status]");
     const closeIcon = filterBtn.querySelector(".close-filter");
     const isActive = filterBtn.classList.contains("active");
 
