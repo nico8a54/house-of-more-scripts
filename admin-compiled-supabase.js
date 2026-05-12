@@ -148,14 +148,13 @@
     const field = header.dataset.sort;
     if (!field) return;
 
-    // Find the row container — walk up to the closest section that holds the rows
-    const section = header.closest("section, .messages-wrapper, .applicants-wrapper, .members-wrapper")
-      || header.parentElement?.parentElement
+    // Scope strictly to the workspace-tab the header lives in, so sorting on
+    // the Members tab doesn't pull in clones from the hidden Applicants tab.
+    const scope = header.closest(".workspace-tab")
+      || header.closest("section, .messages-wrapper, .applicants-wrapper, .members-wrapper")
       || document.body;
 
-    const rows = Array.from(section.querySelectorAll(
-      "[data-clone='true'], .list-block-template[data-clone='true']"
-    ));
+    const rows = Array.from(scope.querySelectorAll("[data-clone='true']"));
     if (!rows.length) return;
 
     // Toggle direction
@@ -163,7 +162,7 @@
     const dir = currentDir === "asc" ? "desc" : "asc";
 
     // Clear direction state from other headers in the same scope
-    section.querySelectorAll("[data-sort]").forEach(h => {
+    scope.querySelectorAll("[data-sort]").forEach(h => {
       h.dataset.sortDir = "";
       h.classList.remove("sort-asc", "sort-desc");
     });
