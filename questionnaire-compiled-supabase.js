@@ -58,7 +58,12 @@
 
     console.log("[SUPABASE] Script ready");
 
-    button.addEventListener("click", async () => {
+    // Edge fix: prevent the native form submit racing the click handler
+    button.setAttribute("type", "button");
+
+    button.addEventListener("click", async (e) => {
+      e.preventDefault();
+
       // Require commitment checkbox before submitting
       const commitBox = form.querySelector('input[type="checkbox"][name="i_commit_to_respecting_the_house_of_more"]');
       if (commitBox && !commitBox.checked) {
