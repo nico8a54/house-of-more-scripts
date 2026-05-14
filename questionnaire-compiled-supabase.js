@@ -59,6 +59,14 @@
     console.log("[SUPABASE] Script ready");
 
     button.addEventListener("click", async () => {
+      // Require commitment checkbox before submitting
+      const commitBox = form.querySelector('input[type="checkbox"][name="i_commit_to_respecting_the_house_of_more"]');
+      if (commitBox && !commitBox.checked) {
+        alert("Please check the commitment agreement before submitting.");
+        commitBox.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+
       const payload = {};
 
       try {
